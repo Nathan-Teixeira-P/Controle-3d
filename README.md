@@ -3,10 +3,10 @@
 Sistema de gestão (orçamentos, pedidos/produção, estoque de filamento, produtos, projetos, vendas, financeiro, relatórios, agenda) para rodar **no computador local**. Veja `SPEC.md` para o desenho completo.
 
 ## Instalar no PC da cliente (Windows)
-1. Ative a virtualização na BIOS (Intel VT-x), se ainda não estiver, e instale o **Docker Desktop** (modo WSL2). Em *Settings → General* marque **Start Docker Desktop when you sign in**.
-2. Copie esta pasta para o PC, copie `.env.example` para `.env` e troque `DB_PASSWORD` e `SECRET_KEY` por textos longos aleatórios.
-3. Dê dois cliques em **`iniciar.bat`** (cria os volumes protegidos e sobe o sistema; as imagens baixam na primeira vez). Linux/Mac: `./iniciar.sh`. Nas próximas vezes não precisa: o sistema sobe sozinho com o Windows.
-4. Abra **http://localhost:3000**, crie o usuário e a senha (primeiro acesso). Os serviços sobem sozinhos com o Windows (`restart: unless-stopped`).
+1. Copie esta pasta para o PC e dê dois cliques em **`instalar.bat`** (aceite o pedido de administrador). Ele instala WSL2 + Docker Desktop, gera o `.env` com senhas aleatórias e sobe o sistema. Se pedir, **reinicie o PC, abra o Docker Desktop, aceite os termos** e rode `instalar.bat` de novo. Requer virtualização ativa na BIOS (Intel VT-x / AMD-V).
+2. Em Docker Desktop *Settings → General*, confirme **Start Docker Desktop when you sign in**. Depois disso o sistema sobe sozinho com o Windows (`restart: unless-stopped`).
+3. Abra **http://localhost:3000**, crie o usuário e a senha (primeiro acesso).
+4. (Manual, sem o instalador: instale o Docker Desktop, copie `.env.example` para `.env`, troque as senhas e rode `iniciar.bat`.)
 5. Celular na mesma rede Wi‑Fi: `http://<IP-do-PC>:3000` (use IP fixo no roteador). Não exponha a porta 3000 na internet.
 
 ## Proteção dos dados (leia)
