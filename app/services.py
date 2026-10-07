@@ -33,9 +33,9 @@ def get_config(s: Session) -> Config:
 
 
 # ---------- Estoque
-def mov(s, tipo, item_id, delta, motivo, ref_tipo="", ref_id=0, obs=""):
+def mov(s, tipo, item_id, delta, motivo, ref_tipo="", ref_id=0, obs="", **compra):
     s.add(MovEstoque(item_tipo=tipo, item_id=item_id, delta=Decimal(delta), motivo=motivo,
-                     ref_tipo=ref_tipo, ref_id=ref_id, obs=obs))
+                     ref_tipo=ref_tipo, ref_id=ref_id, obs=obs, **compra))
 
 
 def saldos(s, tipo):

@@ -1,15 +1,21 @@
 {% extends "base.html" %}{% from "_m.html" import campo, num, opts %}{% block body %}
 <h1>Estoque</h1>{% if msg %}<div class="msg">{{msg}}</div>{% endif %}
-<div class="tabs">{% for k,l in [("alertas","Alertas (" ~ baixo|length ~ ")"),("filamentos","Filamentos"),("insumos","Insumos"),("produtos","Produtos prontos"),("movimentos","Movimentos")] %}<a href="?aba={{k}}" class="{{'on' if aba==k}}">{{l}}</a>{% endfor %}</div>
+<div class="tabs">{% for k,l in [("alertas","Alertas (" ~ baixo|length ~ ")"),("filamentos","Filamentos"),("insumos","Insumos"),("produtos","Produtos prontos"),("movimentos","Movimentos"),("arquivados","Arquivados (" ~ (arq.rolos|length + arq.insumos|length + arq.produtos|length) ~ ")")] %}<a href="?aba={{k}}" class="{{'on' if aba==k}}">{{l}}</a>{% endfor %}</div>
 {% if aba == "alertas" %}
 <div class="card scroll"><p><small><span class="tag acabando">acabando</span> = no mínimo definido ou abaixo · <span class="tag acabou">acabou</span> = zerado. Defina o mínimo em: filamento (na compra), insumo (cadastro) e produto (ficha do produto).</small></p>
 <table><tr><th>Situação</th><th>Tipo</th><th>Item</th><th class="r">Saldo</th><th class="r">Mínimo</th><th></th></tr>
 {% for a in baixo %}<tr class="{{ 'row-bad' if a.status == 'acabou' else 'row-warn' }}"><td><span class="tag {{a.status}}">{{a.status}}</span></td><td>{{a.tipo}}</td><td><b>{{a.nome}}</b></td><td class="r">{{a.saldo|dec(0)}}</td><td class="r">{{a.minimo|dec(0)}}</td>
 <td><a href="?aba={{ {'Filamento':'filamentos','Insumo':'insumos','Produto pronto':'produtos'}[a.tipo] }}">repor →</a></td></tr>{% else %}<tr><td colspan="6">✅ Nada acabando.</td></tr>{% endfor %}</table></div>
 {% elif aba == "filamentos" %}
-<div class="wrap"><table><tr><th>Material</th><th class="r">Total em estoque</th><th class="r">Mínimo</th><th>Situação</th></tr>
-{% for m, tot, stt in mats %}<tr class="{{ 'row-bad' if stt == 'acabou' else 'row-warn' if stt == 'acabando' }}"><td>{{m.nome}}</td><td class="r">{{tot|dec(0)}} g</td><td class="r">{{m.minimo_g|dec(0)}} g</td><td>{% if stt %}<span class="tag {{stt}}">{{stt}}</span>{% else %}ok{% endif %}</td></tr>{% endfor %}</table></div><br>
-<details class="card" open><summary><b>+ Registrar compra de filamento</b></summary><form method="post" action="/estoque/compra"><div class="grid">
+<div class="wrap"><table><tr><th>Material</th><th class="r">Total em estoque</th><th class="r">Mínimo</th><th>Situação</th><th></th></tr>
+{% for m, tot, stt in mats %}<tr class="{{ 'row-bad' if stt == 'acabou' else 'row-warn' if stt == 'acabando' }}"><td>{{m.nome}}</td><td class="r">{{tot|dec(0)}} g</td><td class="r">{{m.minimo_g|dec(0)}} g</td><td>{% if stt %}<span class="tag {{stt}}">{{stt}}</span>{% else %}ok{% endif %}</td>
+<td><a href="/estoque/historico/material/{{m.id}}">histórico</a>
+<form method="post" action="/estoque/material/{{m.id}}/excluir" style="display:inline" onsubmit="return confirm('Excluir {{m.nome}} e todos os seus rolos? O histórico é mantido.')"><button class="lnk bad">excluir</button></form></td></tr>{% endfor %}</table></div><br>
+<details class="card" open><summary><b>+ Adicionar rolos a um filamento já cadastrado</b></summary><form method="post" action="/estoque/compra"><div class="grid">
+<div><label>Filamento</label><select name="material_id" required><option value="">Escolha…</option>{% for m in materiais %}<option value="{{m.id}}">{{m.nome}}</option>{% endfor %}</select></div>
+{{num("qtd","Quantos rolos",1)}}{{num("peso","Peso do rolo (g)",1000)}}{{num("preco","Preço pago por rolo (R$)")}}{{campo("data","Data da compra","","date")}}{{campo("fornecedor","Fornecedor")}}
+</div><p><button>Adicionar</button></p></form></details>
+<details class="card"><summary><b>+ Cadastrar novo filamento (e comprar)</b></summary><form method="post" action="/estoque/compra"><div class="grid">
 <div><label>Material</label><input name="tipo" list="tipos" required placeholder="PLA, PETG…"><datalist id="tipos"><option>PLA<option>PETG<option>ABS<option>ASA<option>TPU<option>PLA SILK</datalist></div>
 {{campo("cor","Cor")}}{{campo("marca","Marca")}}{{campo("fornecedor","Fornecedor")}}{{num("peso","Peso do rolo (g)",1000)}}{{num("preco","Preço pago (R$)")}}{{num("qtd","Quantos rolos",1)}}{{campo("data","Data","","date")}}{{num("minimo_g","Mínimo em estoque (g) — opcional")}}
 </div><p><button>Registrar</button></p></form></details>
@@ -19,13 +25,15 @@
 {% for r, sl in rolos %}<tr class="{{ 'row-bad' if sl <= 0 }}"><td>#{{r.id}}</td><td>{{r.material.nome}}</td><td>{{sl|dec(0)}} g / {{r.peso_inicial|dec(0)}}</td><td style="width:120px"><div class="bar"><i style="width:{{ [100, (sl / r.peso_inicial * 100) if r.peso_inicial else 0]|min if sl > 0 else 0 }}%"></i></div></td>
 <td>{{r.fornecedor}}</td><td class="r">{{r.custo_g|dec(4)}}</td><td class="r">{{r.preco|brl}}</td>
 <td><form method="post" action="/estoque/rolo/{{r.id}}/ajuste" style="display:flex;gap:4px"><input name="restante" type="number" step="any" placeholder="g restantes" style="width:110px"><button class="sec">OK</button></form></td>
-<td><form method="post" action="/estoque/rolo/{{r.id}}/arquivar"><button class="lnk" title="Arquivar (acabou)">arquivar</button></form></td></tr>{% endfor %}</table></div>
+<td><form method="post" action="/estoque/rolo/{{r.id}}/arquivar" style="display:inline"><button class="lnk" title="Arquivar (acabou) — mantém o histórico">arquivar</button></form>
+<form method="post" action="/estoque/rolo/{{r.id}}/excluir" style="display:inline" onsubmit="return confirm('Excluir rolo #{{r.id}} de vez, com todos os movimentos dele? Não dá para desfazer.')"><button class="lnk bad">excluir</button></form></td></tr>{% endfor %}</table></div>
 {% elif aba == "insumos" %}
 <details class="card" open><summary><b>+ Novo insumo</b></summary><form method="post" action="/estoque/insumo"><div class="grid">{{campo("nome","Nome","","text","required")}}{{campo("unidade","Unidade","un")}}{{campo("fornecedor","Fornecedor")}}{{num("custo_unit","Custo unitário (R$)")}}{{num("minimo","Mínimo")}}{{num("qtd","Quantidade inicial")}}</div><p><button>Criar</button></p></form></details>
 <div class="card"><b>Entrada / ajuste</b><form method="post" action="/estoque/mov"><input type="hidden" name="tipo" value="insumo"><div class="grid">
 <div><label>Insumo</label><select name="item_id">{% for i,sl in insumos %}<option value="{{i.id}}">{{i.nome}}</option>{% endfor %}</select></div>{{num("delta","Quantidade (+ entrada, − saída)")}}
-<div><label>Motivo</label><select name="motivo"><option>compra</option><option>ajuste</option><option>perda</option></select></div></div><p><button>Registrar</button></p></form></div>
-<div class="wrap"><table><tr><th>Insumo</th><th class="r">Saldo</th><th class="r">Mínimo</th><th class="r">Custo unit.</th><th>Fornecedor</th></tr>{% for i,sl in insumos %}{% set stt = st.get(("insumo", i.id), "") %}<tr class="{{ 'row-bad' if stt == 'acabou' else 'row-warn' if stt == 'acabando' }}"><td>{{i.nome}} {% if stt %}<span class="tag {{stt}}">{{stt}}</span>{% endif %}</td><td class="r">{{sl|dec(0)}} {{i.unidade}}</td><td class="r">{{i.minimo|dec(0)}}</td><td class="r">{{i.custo_unit|dec(4)}}</td><td>{{i.fornecedor}}</td></tr>{% endfor %}</table></div>
+<div><label>Motivo</label><select name="motivo"><option>compra</option><option>ajuste</option><option>perda</option></select></div>
+{{num("valor","Valor pago total (só compra, R$)")}}{{campo("data","Data da compra","","date")}}{{campo("fornecedor","Fornecedor (só compra)")}}</div><p><button>Registrar</button></p></form></div>
+<div class="wrap"><table><tr><th>Insumo</th><th class="r">Saldo</th><th class="r">Mínimo</th><th class="r">Custo unit.</th><th>Fornecedor</th><th></th></tr>{% for i,sl in insumos %}{% set stt = st.get(("insumo", i.id), "") %}<tr class="{{ 'row-bad' if stt == 'acabou' else 'row-warn' if stt == 'acabando' }}"><td>{{i.nome}} {% if stt %}<span class="tag {{stt}}">{{stt}}</span>{% endif %}</td><td class="r">{{sl|dec(0)}} {{i.unidade}}</td><td class="r">{{i.minimo|dec(0)}}</td><td class="r">{{i.custo_unit|dec(4)}}</td><td>{{i.fornecedor}}</td><td><a href="/estoque/historico/insumo/{{i.id}}">histórico</a> <form method="post" action="/estoque/insumo/{{i.id}}/excluir" style="display:inline" onsubmit="return confirm('Excluir {{i.nome}}? O histórico é mantido.')"><button class="lnk bad">excluir</button></form></td></tr>{% endfor %}</table></div>
 {% elif aba == "produtos" %}
 <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px">
 <div class="card"><b>➕ Produzi peças (entrada)</b><br><small>As peças entram no estoque pronto e o <b>filamento e os insumos</b> da receita do produto (proporcional ao lote) são abatidos.</small>
@@ -37,6 +45,14 @@
 <div><label>Motivo</label><select name="motivo"><option value="ajuste">Contagem/ajuste</option><option value="perda">Perda/defeito</option><option value="amostra">Amostra/brinde</option></select></div>{{campo("obs","Observação")}}
 <div style="align-self:end"><button class="sec">Registrar ajuste</button></div></div></form></div></div>
 <div class="wrap"><table><tr><th>Produto</th><th class="r">Em estoque</th><th class="r">Mínimo</th><th>Fornecedor</th></tr>{% for p,sl in produtos %}{% set stt = st.get(("produto", p.id), "") %}<tr class="{{ 'row-bad' if stt == 'acabou' else 'row-warn' if stt == 'acabando' }}"><td><a href="/produtos/{{p.id}}">{{p.nome}}</a> {% if stt %}<span class="tag {{stt}}">{{stt}}</span>{% endif %}</td><td class="r">{{sl|dec(0)}}</td><td class="r">{{p.minimo|dec(0)}}</td><td>{{p.fornecedor}}</td></tr>{% endfor %}</table></div>
+{% elif aba == "arquivados" %}
+{% macro rest(t, id) %}<form method="post" action="/estoque/{{t}}/{{id}}/restaurar"><button class="sec">restaurar</button></form>{% endmacro %}
+<p><small>Itens arquivados somem das listas, mas o histórico fica. Restaurar devolve o item ao estoque.</small></p>
+<div class="wrap"><table><tr><th>Tipo</th><th>Item</th><th class="r">Saldo</th><th></th></tr>
+{% for r in arq.rolos %}<tr><td>Filamento</td><td>Rolo #{{r.id}} {{r.material.nome}}</td><td class="r">{{sd_all.get(r.id, 0)|dec(0)}} g</td><td>{{rest("rolo", r.id)}}</td></tr>{% endfor %}
+{% for i in arq.insumos %}<tr><td>Insumo</td><td>{{i.nome}}</td><td class="r">—</td><td>{{rest("insumo", i.id)}}</td></tr>{% endfor %}
+{% for p in arq.produtos %}<tr><td>Produto</td><td>{{p.nome}}</td><td class="r">—</td><td>{{rest("produto", p.id)}}</td></tr>{% endfor %}
+{% if not (arq.rolos or arq.insumos or arq.produtos) %}<tr><td colspan="4">Nada arquivado.</td></tr>{% endif %}</table></div>
 {% else %}
 {% set nome_mov = {("rolo","compra"):"Compra de filamento",("rolo","producao"):"Consumo na impressão",("rolo","falha"):"Falha de impressão",("rolo","ajuste"):"Ajuste / pesagem",
  ("insumo","compra"):"Entrada de insumo",("insumo","producao"):"Consumo na produção",("insumo","ajuste"):"Ajuste de insumo",("insumo","perda"):"Perda de insumo",

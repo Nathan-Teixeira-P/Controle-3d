@@ -165,9 +165,9 @@ def test_alertas_acabando_e_acabou(c):
     c.post("/estoque/compra", data={"tipo": "PLA", "cor": "Roxo", "marca": "X", "peso": "1000", "preco": "100", "qtd": "0", "minimo_g": "300"})
     with Session(engine) as s:
         assert sv.estoque_baixo(s) == []                                              # 2000 g: ok
-        sv.mov(s, "rolo", 1, -850, "ajuste"); sv.mov(s, "rolo", 2, -850, "ajuste"); s.commit()
+        sv.mov(s, "rolo", 1, -1700, "ajuste"); s.commit()
         assert [a["status"] for a in sv.estoque_baixo(s)] == ["acabando"]            # 300 g <= mínimo 300
-    c.post("/estoque/rolo/1/ajuste", data={"restante": "0"}); c.post("/estoque/rolo/2/ajuste", data={"restante": "0"})
+    c.post("/estoque/rolo/1/ajuste", data={"restante": "0"})
     with Session(engine) as s:
         assert [a["status"] for a in sv.estoque_baixo(s)] == ["acabou"]
     assert "acabou" in c.get("/estoque?aba=alertas").text and "row-bad" in c.get("/estoque?aba=alertas").text
@@ -248,9 +248,10 @@ def test_pedido_abate_filamento_e_insumos_exatos(c):
 
 
 def test_baixa_de_filamento_passa_para_outro_rolo(c):
-    c.post("/estoque/compra", data={"tipo": "PLA", "cor": "Roxo", "peso": "1000", "preco": "100", "qtd": "2"})
+    c.post("/estoque/compra", data={"tipo": "PLA", "cor": "Roxo", "peso": "1000", "preco": "100", "qtd": "1"})
     c.post("/estoque/rolo/1/ajuste", data={"restante": "30"})
-    with Session(engine) as s:
+    with Session(engine) as s:  # compra nova soma no rolo existente; rolos separados só vêm de dados antigos
+        s.add(Rolo(material_id=1, peso_inicial=1000, preco=100)); s.flush(); sv.mov(s, "rolo", 2, 1000, "compra", "rolo", 2); s.commit()
         assert sv.baixar_rolo(s, 1, D("100"), "pedido", 1) == 0                   # 30 g do rolo 1 + 70 g do rolo 2
         s.commit()
         assert sv.saldo(s, "rolo", 1) == 0 and sv.saldo(s, "rolo", 2) == D("930")

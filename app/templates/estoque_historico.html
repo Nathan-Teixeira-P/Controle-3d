@@ -1,0 +1,9 @@
+{% extends "base.html" %}{% block body %}
+<p><a href="/estoque?aba={{volta}}">← Estoque</a></p>
+<h1>Histórico — {{item.nome}}</h1>
+<p><b>Comprado no total:</b> {{tot_qtd|dec(0)}} {{un}} · <b>Gasto:</b> {{tot_valor|brl}}{% if tot_qtd %} · <b>Custo médio:</b> {{(tot_valor / tot_qtd)|dec(4)}} /{{un}}{% endif %}</p>
+<div class="wrap"><table><tr><th>Quando</th><th>Movimento</th><th class="r">Quantidade</th><th class="r">Valor pago</th><th class="r">Custo/{{un}}</th><th>Fornecedor</th><th>Obs.</th></tr>
+{% for m in movs %}<tr><td>{{ m.data.strftime("%d/%m/%Y") if m.data else m.em.strftime("%d/%m/%Y %H:%M") }}</td><td>{{m.motivo}}{% if m.ref_tipo == 'pedido' %} · <a href="/pedidos/{{m.ref_id}}">Pedido #{{m.ref_id}}</a>{% elif m.ref_tipo == 'venda' %} · <a href="/vendas/{{m.ref_id}}">Venda #{{m.ref_id}}</a>{% endif %}</td>
+<td class="r {{'bad' if m.delta < 0 else 'ok'}}">{{ '+' if m.delta > 0 }}{{m.delta|dec(0)}} {{un}}</td>
+<td class="r">{{ m.valor|brl if m.valor is not none else '—' }}</td><td class="r">{{ (m.valor / m.delta)|dec(4) if m.valor and m.delta else '—' }}</td><td>{{m.fornecedor}}</td><td>{{m.obs}}</td></tr>
+{% else %}<tr><td colspan="7">Nenhum movimento.</td></tr>{% endfor %}</table></div>{% endblock %}

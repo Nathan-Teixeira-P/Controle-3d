@@ -118,6 +118,9 @@ class MovEstoque(SQLModel, table=True):
     ref_id: int = 0
     obs: str = ""
     em: NaiveDatetime = Field(default_factory=agora)
+    valor: Optional[Decimal] = Field(default=None, max_digits=14, decimal_places=2)  # total pago (compras)
+    data: Optional[date] = None  # data da compra
+    fornecedor: str = ""
 
 
 # ---------- Projetos (arquivos de modelo/fatiamento guardados no sistema)
