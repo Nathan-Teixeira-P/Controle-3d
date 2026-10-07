@@ -5,9 +5,15 @@ Sistema de gestão (orçamentos, pedidos/produção, estoque de filamento, produ
 ## Instalar no PC da cliente (Windows)
 1. Ative a virtualização na BIOS (Intel VT-x), se ainda não estiver, e instale o **Docker Desktop** (modo WSL2). Em *Settings → General* marque **Start Docker Desktop when you sign in**.
 2. Copie esta pasta para o PC, copie `.env.example` para `.env` e troque `DB_PASSWORD` e `SECRET_KEY` por textos longos aleatórios.
-3. Na pasta, rode: `docker compose up -d --build` (as imagens baixam na primeira vez).
-4. Abra **http://localhost:6000**, crie o usuário e a senha (primeiro acesso). Os serviços sobem sozinhos com o Windows (`restart: unless-stopped`).
-5. Celular na mesma rede Wi‑Fi: `http://<IP-do-PC>:6000` (use IP fixo no roteador). Não exponha a porta 6000 na internet.
+3. Dê dois cliques em **`iniciar.bat`** (cria os volumes protegidos e sobe o sistema; as imagens baixam na primeira vez). Linux/Mac: `./iniciar.sh`. Nas próximas vezes não precisa: o sistema sobe sozinho com o Windows.
+4. Abra **http://localhost:3000**, crie o usuário e a senha (primeiro acesso). Os serviços sobem sozinhos com o Windows (`restart: unless-stopped`).
+5. Celular na mesma rede Wi‑Fi: `http://<IP-do-PC>:3000` (use IP fixo no roteador). Não exponha a porta 3000 na internet.
+
+## Proteção dos dados (leia)
+- O banco e os arquivos enviados ficam em volumes **protegidos** (`controle_pgdata`, `controle_uploads`): o comando `docker compose down -v` **não os apaga**.
+- O serviço `backup` grava a cada 6 h na pasta **`backups/`** (que fica no Windows, fora do Docker). Se o banco aparecer **vazio** (Docker Desktop resetado/reinstalado, volume apagado) e existir backup com dados, **ele restaura sozinho** ao subir (veja `docker compose logs backup`).
+- Só apague os volumes de propósito: `docker volume rm controle_pgdata controle_uploads`. **Para recomeçar do zero de verdade, apague também a pasta `backups/`**, senão o sistema restaura o backup antigo.
+- Ainda assim, copie `backups/` para um pendrive/nuvem toda semana (protege contra disco queimado ou PC roubado).
 
 ## Rotina
 - **Backup**: automático a cada 24 h em `backups/` (guarda 30 dias) + botão em *Configurações*. Copie essa pasta para pendrive/nuvem de vez em quando.

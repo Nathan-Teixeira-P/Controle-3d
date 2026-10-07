@@ -7,7 +7,7 @@ from sqlmodel import Session, select
 from .. import services as sv
 from ..db import get_session
 from ..models import Canal, Cliente, Pedido, PedidoItem, PedidoHistorico, Produto, Venda
-from ..util import D, page
+from ..util import D, barreira, page
 
 router = APIRouter()
 COLUNAS = sv.ORDEM + ["cancelado"]
@@ -28,6 +28,7 @@ def kanban(request: Request, tipo: str = "", s: Session = Depends(get_session)):
 
 @router.get("/pedidos/novo")
 def novo(request: Request, s: Session = Depends(get_session)):
+    sv.atualizar_precos(s)
     return page(request, "pedido_form.html", clientes=s.exec(select(Cliente).where(Cliente.ativo).order_by(Cliente.nome)).all(),
                 canais=s.exec(select(Canal).where(Canal.ativo)).all(),
                 produtos=s.exec(select(Produto).where(Produto.ativo).order_by(Produto.nome)).all())
@@ -36,6 +37,7 @@ def novo(request: Request, s: Session = Depends(get_session)):
 @router.post("/pedidos")
 async def criar(request: Request, s: Session = Depends(get_session)):
     """Pedido direto (sem orçamento) ou de reposição de estoque."""
+    sv.atualizar_precos(s)
     f = await request.form()
     cfg, tipo = sv.get_config(s), f.get("tipo", "cliente")
     ped = Pedido(tipo=tipo, cliente_id=int(f["cliente_id"]) if f.get("cliente_id") and tipo == "cliente" else None,
@@ -61,23 +63,41 @@ def ver(id: int, request: Request, s: Session = Depends(get_session)):
     ped = s.get(Pedido, id)
     venda = s.exec(select(Venda).where(Venda.pedido_id == id, Venda.status == "ativa")).first()
     plano = sv.plano_consumo(s, ped)
-    return page(request, "pedido.html", p=ped, venda=venda, ordem=sv.ordem(ped), plano=plano,
+    return page(request, "pedido.html", p=ped, venda=venda, ordem=sv.ordem(ped), plano=plano, pins=sv.plano_insumos(s, ped), pronta=sv.qtds_prontas(s, ped),
                 rolos=[r for pl in plano for r in pl["rolos"]], msg=request.query_params.get("msg", ""),
                 custo=sum((i.qtd * i.custo_unit for i in ped.itens), sv.Z) + ped.custo_extra,
                 arquivos={pr.id: pr.projeto for pr in (s.get(Produto, i.produto_id) for i in ped.itens if i.produto_id) if pr.projeto})
+
+
+@router.post("/pedidos/{id}/atendimento")
+async def atendimento(id: int, request: Request, s: Session = Depends(get_session)):
+    """Muda a escolha 'atender com produto já pronto?' enquanto o pedido ainda não começou."""
+    ped = s.get(Pedido, id)
+    if ped.status == "aguardando" and ped.tipo == "cliente":
+        ped.do_estoque = (await request.form())["do_estoque"] == "1"; s.add(ped); s.commit()
+    return RedirectResponse(f"/pedidos/{id}", 303)
 
 
 @router.post("/pedidos/{id}/mover")
 async def mover(id: int, request: Request, s: Session = Depends(get_session)):
     ped, f = s.get(Pedido, id), await request.form()
     para = f["para"]
-    consumos = []
-    if ped.status == "aguardando" and para == "imprimindo" and not ped.do_estoque:
-        plano = sv.plano_consumo(s, ped)
-        if plano and "rolo" not in f:  # precisa escolher rolos → tela de confirmação
-            return RedirectResponse(f"/pedidos/{id}?confirmar=1", 303)
-        consumos = [(int(r), D(g)) for r, g in zip(f.getlist("rolo"), f.getlist("gramas")) if r]
-    erro = sv.mover_pedido(s, ped, para, consumos)
+    consumos, insumos, faltas = [], [], []
+    if ped.status == "aguardando" and para == "imprimindo":
+        if ped.do_estoque and ped.tipo == "cliente":      # SIM: sai só do produto pronto
+            faltas = sv.faltas_pronto(s, [(i.produto_id, i.qtd) for i in ped.itens])
+        else:                                              # NÃO: imprime, gasta só filamento/insumos
+            if (sv.plano_consumo(s, ped) or sv.plano_insumos(s, ped)) and not f.get("confirmado"):  # confirmar o que será gasto
+                return RedirectResponse(f"/pedidos/{id}?confirmar=1", 303)
+            consumos = [(int(r), D(g)) for r, g in zip(f.getlist("rolo"), f.getlist("gramas")) if r]
+            insumos = [(int(i), D(q)) for i, q in zip(f.getlist("ins_id"), f.getlist("ins_q")) if i]
+            faltas = sv.faltas_consumo(s, ped, consumos, insumos)
+    elif para == "entregue" and ped.status == "enviado":
+        faltas = sv.faltas_pronto(s, [(i.produto_id, i.qtd_pronta) for i in ped.itens if i.qtd_pronta])
+    if faltas and not f.get("forcar"):
+        return barreira(request, faltas, f"/pedidos/{id}/mover", f, f"/pedidos/{id}",
+                        "iniciar a impressão" if para == "imprimindo" else "entregar")
+    erro = sv.mover_pedido(s, ped, para, consumos, insumos)
     return RedirectResponse(f"/pedidos/{id}" + (f"?msg={erro}" if erro else ""), 303)
 
 

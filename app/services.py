@@ -6,6 +6,7 @@ from decimal import Decimal
 from sqlmodel import Session, func, select
 
 from .calc import calcular
+from .util import D
 from .models import (Canal, Config, Impressora, Insumo, Item, Lancamento, Material, MovEstoque, Orcamento, Pedido,
                      PedidoHistorico, PedidoItem, Produto, ProdutoMaterial, Rolo, Tarefa, Venda, VendaItem, agora)
 
@@ -57,6 +58,103 @@ def custo_g_material(s, material_id, sd=None):
     return rolos[-1].custo_g if rolos else Z
 
 
+def baixar_rolo(s, rolo_id, gramas, ref_tipo, ref_id, motivo="producao", obs=""):
+    """Baixa `gramas` do rolo escolhido; o que faltar sai dos outros rolos do mesmo material (mais antigo primeiro).
+    Se ainda faltar, o saldo do rolo escolhido fica negativo (vira alerta 'acabou'). Retorna o que faltou."""
+    falta, r = Decimal(gramas), s.get(Rolo, rolo_id)
+    sd = saldos(s, "rolo")
+    outros = s.exec(select(Rolo).where(Rolo.material_id == r.material_id, Rolo.ativo, Rolo.id != r.id).order_by(Rolo.id)).all()
+    for x in [r, *outros]:
+        take = min(falta, max(sd.get(x.id, Z), Z))
+        if take > 0:
+            mov(s, "rolo", x.id, -take, motivo, ref_tipo, ref_id, obs); falta -= take
+    if falta > 0:
+        mov(s, "rolo", r.id, -falta, motivo, ref_tipo, ref_id, obs or "estoque insuficiente")
+    return falta
+
+
+def registrar_producao(s, p: Produto, unidades, ref_tipo="produto", ref_id=0, obs="produção registrada"):
+    """Produção direta (sem pedido): entra no estoque pronto e abate filamento (FIFO entre rolos) e insumos da receita.
+    Os valores do produto são do lote, então cada unidade consome 1/lote. Retorna frases do que foi abatido."""
+    unidades, lote, sd, resumo = Decimal(unidades), p.lote_qtd or 1, saldos(s, "rolo"), []
+    for pm in p.materiais:
+        g = pm.gramas * unidades / lote
+        rolos = s.exec(select(Rolo).where(Rolo.material_id == pm.material_id, Rolo.ativo).order_by(Rolo.id)).all()
+        if not rolos:
+            resumo.append(f"{pm.material.nome}: nenhum rolo cadastrado, nada abatido")
+            continue
+        falta = baixar_rolo(s, next((r for r in rolos if sd.get(r.id, Z) > 0), rolos[0]).id, g, ref_tipo, ref_id, obs=obs)
+        resumo.append(f"{g:.0f} g de {pm.material.nome}" + (f" (faltaram {falta:.0f} g no estoque)" if falta else ""))
+    for pi in p.insumos:
+        q = pi.qtd * unidades / lote
+        mov(s, "insumo", pi.insumo_id, -q, "producao", ref_tipo, ref_id, obs)
+        resumo.append(f"{q:.2f} {pi.insumo.unidade} de {pi.insumo.nome}")
+    mov(s, "produto", p.id, unidades, "producao", ref_tipo, ref_id, obs)
+    return resumo
+
+
+# ---------- Alertas de falta (barreira antes de produzir/vender sem estoque)
+def disponivel_filamento(s, material_id):
+    sd = saldos(s, "rolo")
+    return sum((max(sd.get(r.id, Z), Z) for r in s.exec(select(Rolo).where(Rolo.material_id == material_id, Rolo.ativo))), Z)
+
+
+def faltas_filamento(s, por_material):
+    """por_material: {material_id: gramas}."""
+    out = []
+    for mid, g in por_material.items():
+        disp = disponivel_filamento(s, mid)
+        if g > disp:
+            out.append(f"Filamento {s.get(Material, mid).nome}: serão usados {g:.0f} g, há {disp:.0f} g em estoque (faltam {g - disp:.0f} g)")
+    return out
+
+
+def faltas_insumos(s, por_insumo):
+    sd, out = saldos(s, "insumo"), []
+    for iid, q in por_insumo.items():
+        disp = max(sd.get(iid, Z), Z)
+        if q > disp:
+            i = s.get(Insumo, iid)
+            out.append(f"Insumo {i.nome}: serão usados {q:.2f} {i.unidade}, há {disp:.2f} em estoque (faltam {q - disp:.2f})")
+    return out
+
+
+def faltas_producao(s, p: Produto, unidades):
+    """Falta de filamento/insumo para produzir `unidades` do produto (valores do produto são do lote)."""
+    lote, mats, ins = p.lote_qtd or 1, {}, {}
+    for pm in p.materiais:
+        mats[pm.material_id] = mats.get(pm.material_id, Z) + pm.gramas * Decimal(unidades) / lote
+    for pi in p.insumos:
+        ins[pi.insumo_id] = ins.get(pi.insumo_id, Z) + pi.qtd * Decimal(unidades) / lote
+    return faltas_filamento(s, mats) + faltas_insumos(s, ins)
+
+
+def faltas_pronto(s, linhas):
+    """linhas: [(produto_id, qtd)] que vão sair do estoque pronto."""
+    tot, out = {}, []
+    for pid, q in linhas:
+        if pid:
+            tot[pid] = tot.get(pid, Z) + Decimal(q)
+    for pid, q in tot.items():
+        disp = max(saldo(s, "produto", pid), Z)
+        if q > disp:
+            out.append(f"Produto {s.get(Produto, pid).nome}: saem {q:.0f} un., há {disp:.0f} prontas em estoque (faltam {q - disp:.0f})")
+    return out
+
+
+def faltas_consumo(s, ped, consumos, insumos):
+    """Pedido iniciando a impressão: o que foi digitado (ou o previsto, se não escolheu rolo) contra o estoque."""
+    digitado = {}
+    for rolo_id, g in consumos:
+        mid = s.get(Rolo, rolo_id).material_id
+        digitado[mid] = digitado.get(mid, Z) + g
+    mats = {pl["material"].id: digitado.get(pl["material"].id, pl["gramas"]) for pl in plano_consumo(s, ped)}
+    ins = {pi["insumo"].id: Z for pi in plano_insumos(s, ped)}
+    for iid, q in insumos:
+        ins[iid] = ins.get(iid, Z) + q
+    return faltas_filamento(s, mats) + faltas_insumos(s, ins)
+
+
 def estoque_baixo(s):
     """Alertas de estoque: 'acabou' (saldo <= 0) e 'acabando' (saldo <= mínimo). Só itens acompanhados:
     com mínimo definido ou que já tiveram entrada. Retorna dicts, 'acabou' primeiro."""
@@ -85,6 +183,53 @@ def estoque_baixo(s):
 
 
 # ---------- Custo de produto
+def _col(f, k, n):
+    v = f.getlist(k)
+    return v + [""] * (n - len(v))
+
+
+def calcular_form(s, f, cfg=None):
+    """Calcula a partir de um formulário (calculadora ou ficha do produto). Todos os valores são do LOTE.
+    Campos: mat_id/mat_g[/mat_preco/mat_pesorolo] (filamentos; sem mat_id = valor manual), ins_id/ins_q (insumos do estoque),
+    out_desc/out_valor (outros custos), horas ou tempo_min, min_trabalho, embalagem, acessorios, margem_pct, lote_qtd,
+    impressora_id, canal_id."""
+    cfg = cfg or get_config(s)
+    imp = s.get(Impressora, int(f["impressora_id"])) if f.get("impressora_id") else None
+    canal = s.get(Canal, int(f["canal_id"])) if f.get("canal_id") else None
+    n = len(f.getlist("mat_g"))
+    fils, detalhe, fil_total = [], [], Z
+    for m, g, pr, pesor in zip(_col(f, "mat_id", n), f.getlist("mat_g"), _col(f, "mat_preco", n), _col(f, "mat_pesorolo", n)):
+        if D(g) <= 0:
+            continue
+        fils.append(dict(material_id=m, g=g, preco=pr, peso_rolo=pesor or "1000"))
+        if m:
+            mat = s.get(Material, int(m))
+            cg, nome = custo_g_material(s, mat.id), mat.nome
+        else:
+            cg, nome = D(pr) / (D(pesor, 1000) or 1000), "Manual"
+        detalhe.append(dict(nome=nome, g=D(g), cg=cg, custo=D(g) * cg))
+        fil_total += D(g) * cg
+    n = len(f.getlist("ins_q"))
+    ins, ins_det, ins_total = [], [], Z
+    for i, q in zip(_col(f, "ins_id", n), f.getlist("ins_q")):
+        if i and D(q) > 0:
+            o = s.get(Insumo, int(i))
+            ins.append(dict(insumo_id=i, q=q))
+            ins_det.append(dict(nome=o.nome, q=D(q), un=o.unidade, custo=D(q) * o.custo_unit))
+            ins_total += D(q) * o.custo_unit
+    n = len(f.getlist("out_valor"))
+    outros = [dict(desc=d, valor=v) for d, v in zip(_col(f, "out_desc", n), f.getlist("out_valor")) if D(v) != 0]
+    out_total = sum((D(o["valor"]) for o in outros), Z)
+    horas = D(f.get("horas")) if f.get("horas") not in (None, "") else D(f.get("tempo_min")) / 60
+    kw = dict(embalagem=D(f.get("embalagem")), acessorios=D(f.get("acessorios")) + ins_total + out_total,
+              min_trabalho=D(f.get("min_trabalho")), margem_pct=D(f.get("margem_pct"), cfg.margem_pct),
+              lote=int(D(f.get("lote_qtd"), 1)))
+    r = calcular(cfg, imp, fil_total, horas, taxa_pct=canal.taxa_pct if canal else 0,
+                 taxa_fixa=canal.taxa_fixa if canal else 0, **kw)
+    return dict(r=r, fils=fils, detalhe=detalhe, ins=ins, ins_det=ins_det, outros=outros, out_total=out_total,
+                cfg=cfg, imp=imp, fil_total=fil_total, horas=horas, kw=kw)
+
+
 def custo_produto(s, p: Produto, cfg=None, canal: Canal | None = None, sd=None):
     cfg = cfg or get_config(s)
     sd = sd if sd is not None else saldos(s, "rolo")
@@ -92,7 +237,23 @@ def custo_produto(s, p: Produto, cfg=None, canal: Canal | None = None, sd=None):
     ins = sum((pi.qtd * pi.insumo.custo_unit for pi in p.insumos), Z)
     imp = s.get(Impressora, p.impressora_id) if p.impressora_id else None
     return calcular(cfg, imp, fil, Decimal(p.tempo_min) / 60, p.embalagem, p.acessorios + ins, p.min_trabalho,
-                    p.margem_pct, canal.taxa_pct if canal else 0, canal.taxa_fixa if canal else 0)
+                    p.margem_pct, canal.taxa_pct if canal else 0, canal.taxa_fixa if canal else 0, lote=p.lote_qtd)
+
+
+def atualizar_precos(s, produtos=None):
+    """O preço dos produtos NÃO manuais acompanha o sugerido (custo + margem): recalcula sempre que algo mudou
+    (filamento, insumo, energia, impressora, margem, lote…). Preço digitado à mão (preco_manual) nunca é alterado."""
+    cfg, sd, mudou = get_config(s), saldos(s, "rolo"), False
+    if produtos is None:
+        produtos = s.exec(select(Produto).where(Produto.ativo, Produto.preco_manual == False)).all()  # noqa: E712
+    for p in produtos:
+        if p.preco_manual:
+            continue
+        novo = custo_produto(s, p, cfg, sd=sd)["preco"]
+        if novo and novo != p.preco:  # sem receita/custo (preço 0) não sobrescreve
+            p.preco = novo; s.add(p); mudou = True
+    if mudou:
+        s.commit()
 
 
 def margem_real(p, custo):
@@ -100,10 +261,10 @@ def margem_real(p, custo):
 
 
 # ---------- Orçamento → Pedido
-def criar_pedido_de_orcamento(s, o: Orcamento, prazo: date | None):
+def criar_pedido_de_orcamento(s, o: Orcamento, prazo: date | None, do_estoque=False):
     cfg = get_config(s)
     ped = Pedido(orcamento_id=o.id, cliente_id=o.cliente_id, canal_id=o.canal_id, prazo=prazo,
-                 desconto=o.desconto, frete=o.frete, observacoes=o.observacoes)
+                 desconto=o.desconto, frete=o.frete, observacoes=o.observacoes, do_estoque=do_estoque)
     s.add(ped); s.flush()
     for i in o.itens:
         custo = i.custo_unit
@@ -117,13 +278,24 @@ def criar_pedido_de_orcamento(s, o: Orcamento, prazo: date | None):
     return ped
 
 
+def qtds_prontas(s, ped):
+    """{item_id: unidades que saem do estoque pronto}. Escolha dela no pedido ("atender com produto já pronto?"):
+    SIM = tudo sai do produto pronto (não imprime, não gasta material); NÃO = tudo é impresso (só gasta material).
+    Depois de iniciado, vale o que ficou gravado."""
+    if ped.status != "aguardando":
+        return {i.id: i.qtd_pronta for i in ped.itens}
+    sim = ped.do_estoque and ped.tipo != "estoque"
+    return {i.id: (i.qtd if sim and i.produto_id else 0) for i in ped.itens}
+
+
 def plano_consumo(s, ped):
-    """Materiais necessários para o pedido, com os rolos que ainda têm saldo."""
-    need = {}
+    """Filamentos necessários só para as unidades que serão IMPRESSAS (as já prontas em estoque não gastam material)."""
+    pronta, need = qtds_prontas(s, ped), {}
     for it in ped.itens:
-        if it.produto_id:
+        if it.produto_id and it.qtd - pronta[it.id] > 0:
+            lote = s.get(Produto, it.produto_id).lote_qtd or 1  # gramas do produto são do lote
             for pm in s.exec(select(ProdutoMaterial).where(ProdutoMaterial.produto_id == it.produto_id)):
-                need[pm.material_id] = need.get(pm.material_id, Z) + pm.gramas * it.qtd
+                need[pm.material_id] = need.get(pm.material_id, Z) + pm.gramas * (it.qtd - pronta[it.id]) / lote
     sd, out = saldos(s, "rolo"), []
     for mid, g in need.items():
         rolos = [(r, sd.get(r.id, Z)) for r in s.exec(select(Rolo).where(Rolo.material_id == mid, Rolo.ativo).order_by(Rolo.id))
@@ -132,9 +304,22 @@ def plano_consumo(s, ped):
     return out
 
 
+def plano_insumos(s, ped):
+    """Insumos necessários só para as unidades que serão impressas (qtd do produto é do lote → por unidade = qtd/lote)."""
+    pronta, need = qtds_prontas(s, ped), {}
+    for it in ped.itens:
+        if it.produto_id and it.qtd - pronta[it.id] > 0:
+            p = s.get(Produto, it.produto_id)
+            for pi in p.insumos:
+                need[pi.insumo_id] = need.get(pi.insumo_id, Z) + pi.qtd * (it.qtd - pronta[it.id]) / (p.lote_qtd or 1)
+    sd = saldos(s, "insumo")
+    return [dict(insumo=s.get(Insumo, i), qtd=q, saldo=sd.get(i, Z)) for i, q in need.items()]
+
+
 # ---------- Pedido: máquina de estados
-def mover_pedido(s, ped, para, consumos=()):
-    """consumos: [(rolo_id, gramas)]. Retorna mensagem de erro ou None."""
+def mover_pedido(s, ped, para, consumos=(), insumos=()):
+    """consumos: [(rolo_id, gramas)]; insumos: [(insumo_id, qtd)] — baixados ao iniciar a impressão.
+    Retorna mensagem de erro ou None."""
     de, o = ped.status, ordem(ped)
     if para == "cancelado":
         if de in ("entregue", "cancelado") or (ped.tipo == "estoque" and de == "pronto"):
@@ -145,20 +330,26 @@ def mover_pedido(s, ped, para, consumos=()):
     elif de == "entregue" or de not in o or para not in o or abs(o.index(para) - o.index(de)) != 1:
         return "Movimento inválido."
 
-    if de == "aguardando" and para == "imprimindo" and not ped.do_estoque:
+    if de == "aguardando" and para == "imprimindo":
+        pronta = qtds_prontas(s, ped)
+        for it in ped.itens:  # fixa quanto sai do estoque pronto (reserva) e quanto será impresso
+            it.qtd_pronta = pronta[it.id]; s.add(it)
         for rolo_id, g in consumos:
             if g > 0:
-                mov(s, "rolo", rolo_id, -g, "producao", "pedido", ped.id)
+                baixar_rolo(s, rolo_id, g, "pedido", ped.id)
+        for insumo_id, q in insumos:
+            if q > 0:
+                mov(s, "insumo", insumo_id, -q, "producao", "pedido", ped.id)
     if de == "acabamento" and para == "pronto":
         for it in ped.itens:
             if not it.produto_id:
                 continue
             p = s.get(Produto, it.produto_id)
-            if ped.tipo == "estoque":
+            if ped.tipo == "estoque":  # só reposição de estoque dá entrada no produto pronto
                 mov(s, "produto", p.id, it.qtd, "producao", "pedido", ped.id)
-            if not ped.do_estoque and p.impressora_id:
+            if p.impressora_id and it.qtd - it.qtd_pronta > 0:  # horas só das unidades impressas
                 imp = s.get(Impressora, p.impressora_id)
-                imp.horas_acumuladas += Decimal(p.tempo_min * it.qtd) / 60
+                imp.horas_acumuladas += Decimal(p.tempo_min * (it.qtd - it.qtd_pronta)) / (60 * (p.lote_qtd or 1))
                 s.add(imp)
     if de == "pronto" and para == "acabamento" and ped.tipo == "estoque":
         for m in s.exec(select(MovEstoque).where(MovEstoque.ref_tipo == "pedido", MovEstoque.ref_id == ped.id,
@@ -201,14 +392,15 @@ def criar_venda_de_pedido(s, ped):
     for i in ped.itens:
         s.add(VendaItem(venda_id=v.id, produto_id=i.produto_id, descricao=i.descricao, qtd=i.qtd,
                         preco_unit=i.preco_unit, custo_unit=i.custo_unit))
-        if ped.do_estoque and i.produto_id:
-            mov(s, "produto", i.produto_id, -i.qtd, "venda", "venda", v.id)
+        if i.produto_id and i.qtd_pronta:  # só o que saiu do estoque pronto (o que foi impresso para o pedido nunca entrou nele)
+            mov(s, "produto", i.produto_id, -i.qtd_pronta, "venda", "venda", v.id)
     _lancar_receita(s, v)
     return v
 
 
 def venda_avulsa(s, cliente_id, canal_id, forma, data, linhas):
-    """linhas: [(produto_id|None, descricao, qtd, preco_unit)]. Baixa o estoque pronto dos produtos."""
+    """linhas: [(produto_id|None, descricao, qtd, preco_unit)]. A venda baixa o PRODUTO PRONTO (filamento e insumo
+    são baixados na impressão, não na venda)."""
     cfg, canal = get_config(s), (s.get(Canal, canal_id) if canal_id else None)
     v = Venda(cliente_id=cliente_id, canal_id=canal_id, forma_pagamento=forma, data=data)
     s.add(v); s.flush()
@@ -235,7 +427,8 @@ def estornar_venda(s, v: Venda):
     v.status = "estornada"
     for l in s.exec(select(Lancamento).where(Lancamento.venda_id == v.id)):
         l.cancelado = True; s.add(l)
-    for m in s.exec(select(MovEstoque).where(MovEstoque.ref_tipo == "venda", MovEstoque.ref_id == v.id)):
+    for m in s.exec(select(MovEstoque).where(MovEstoque.ref_tipo == "venda", MovEstoque.ref_id == v.id,
+                                             MovEstoque.motivo == "venda")):   # filamento/insumo já foram gastos
         mov(s, m.item_tipo, m.item_id, -m.delta, "ajuste", "venda", v.id, "estorno de venda")
     s.add(v); s.commit()
 
@@ -251,10 +444,17 @@ def pagar(s, l: Lancamento, quando: date):
 
 
 def concluir_tarefa(s, t: Tarefa):
+    """Marca/desmarca. Tarefa recorrente gera a próxima ocorrência UMA vez (e desmarcar desfaz, se ainda intocada)."""
     t.feita = not t.feita
-    if t.feita and t.recorrencia:
-        s.add(Tarefa(titulo=t.titulo, hora=t.hora, recorrencia=t.recorrencia,
-                     data=t.data + timedelta(days=1 if t.recorrencia == "diaria" else 7)))
+    if t.recorrencia:
+        prox = t.data + timedelta(days=1 if t.recorrencia == "diaria" else 7)
+        q = select(Tarefa).where(Tarefa.titulo == t.titulo, Tarefa.recorrencia == t.recorrencia, Tarefa.data == prox,
+                                 Tarefa.hora == t.hora, Tarefa.id != t.id)
+        existente = s.exec(q).first()
+        if t.feita and not existente:
+            s.add(Tarefa(titulo=t.titulo, hora=t.hora, recorrencia=t.recorrencia, data=prox))
+        elif not t.feita and existente and not existente.feita:
+            s.delete(existente)
     s.add(t); s.commit()
 
 

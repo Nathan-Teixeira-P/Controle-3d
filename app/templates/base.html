@@ -1,40 +1,8 @@
 <!doctype html><html lang="pt-br"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>3D Conex Lab</title><link rel="icon" href="/static/logo.png">
-<style>
-:root{--p:#7b1a8c;--bg:#f6f4f8;--ok:#1a7f37;--bad:#c62828;--warn:#e69500}
-*{box-sizing:border-box}body{margin:0;font:15px system-ui,sans-serif;background:var(--bg);color:#222;display:flex;min-height:100vh}
-nav{width:210px;flex:none;background:#fff;border-right:1px solid #ddd;padding:14px;position:sticky;top:0;height:100vh;overflow:auto}
-nav img{width:100%;margin-bottom:10px}nav h6{margin:14px 0 4px;color:#999;text-transform:uppercase;font-size:11px}
-nav a{display:block;padding:7px 10px;color:#222;text-decoration:none;border-radius:6px}nav a:hover{background:#eee}
-.warn{color:var(--warn)}.row-warn td{background:#fff4d6}.row-bad td{background:#ffe3e3}.tag.acabando{background:#ffe0a3}.tag.acabou{background:#ffcdd2}
-.alerta{padding:10px 14px;border-radius:8px;margin-bottom:14px;display:block;text-decoration:none;color:#222;border-left:5px solid var(--warn);background:#fff4d6}.alerta.bad{border-color:var(--bad);background:#ffe3e3}
-.badge{background:var(--bad);color:#fff;border-radius:9px;padding:0 6px;font-size:11px;margin-left:4px}
-main{flex:1;padding:22px;min-width:0}
-table{width:100%;border-collapse:collapse;background:#fff}th,td{padding:8px;border-bottom:1px solid #eee;text-align:left;vertical-align:top}th{background:#faf7fb;font-size:13px}
-.r{text-align:right}.wrap{overflow-x:auto}
-input,select,textarea{padding:7px;border:1px solid #ccc;border-radius:6px;width:100%;font:inherit;background:#fff}
-label{display:block;margin:8px 0 2px;font-size:12px;color:#555}
-button,.btn{background:var(--p);color:#fff;border:0;padding:8px 14px;border-radius:6px;cursor:pointer;text-decoration:none;display:inline-block;font:inherit}
-button.sec,.btn.sec{background:#e7e1ea;color:#333}button.bad{background:var(--bad)}button.lnk{background:none;color:var(--p);padding:0}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:0 12px}
-.card{background:#fff;padding:16px;border-radius:8px;margin-bottom:16px;box-shadow:0 1px 2px #0001}
-.kpi small{color:#777}.kpi h2{margin:4px 0}.bad{color:var(--bad)}.ok{color:var(--ok)}
-.pager a{padding:3px 9px;border:1px solid #ccc;border-radius:5px;text-decoration:none;color:#333;margin-right:3px;background:#fff}.pager a.on{background:var(--p);color:#fff}
-.msg{background:#e8f5e9;border:1px solid #a5d6a7;padding:8px 12px;border-radius:6px;margin-bottom:12px}
-.tag{padding:2px 8px;border-radius:10px;background:#eee;font-size:12px}.tag.aprovado,.tag.entregue,.tag.ativa{background:#c8e6c9}.tag.recusado,.tag.cancelado,.tag.estornada,.tag.expirado{background:#ffcdd2}
-.bar{height:10px;background:#eee;border-radius:5px;overflow:hidden}.bar i{display:block;height:100%;background:var(--p)}
-.tabs a{padding:8px 14px;text-decoration:none;color:#333;border-radius:6px 6px 0 0;display:inline-block}.tabs a.on{background:#fff;font-weight:600;color:var(--p)}
-.kanban{display:grid;grid-template-columns:repeat(7,minmax(190px,1fr));gap:10px;overflow-x:auto;align-items:start}
-.col{background:#ece7ef;border-radius:8px;padding:8px;min-height:120px}.col h4{margin:2px 4px 8px;font-size:13px;text-transform:capitalize}
-.pc{background:#fff;border-radius:6px;padding:8px;margin-bottom:8px;font-size:13px;box-shadow:0 1px 2px #0002}.pc.late{border-left:4px solid var(--bad)}
-.pc form{display:inline}.pc button{padding:2px 8px}
-.thumb{width:44px;height:44px;object-fit:cover;border-radius:6px;background:#eee}
-.row{border-bottom:1px dashed #ddd;padding-bottom:6px}
-@media(max-width:800px){body{flex-direction:column}nav{width:auto;height:auto;position:static;display:flex;flex-wrap:wrap;gap:2px;border:0;border-bottom:1px solid #ddd}
-nav img{width:120px;margin:0 10px 0 0}nav h6{display:none}nav a{padding:6px 8px}main{padding:12px}.kanban{grid-template-columns:repeat(7,230px)}}
-@media print{nav{display:none}}
-</style></head><body>
-<nav><img src="/static/logo.png" alt="3D Conex Lab">
+<link rel="stylesheet" href="/static/tema.css"><link rel="stylesheet" href="/static/style.css"><script>try{var t=localStorage.getItem('tema')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.dataset.tema=t}catch(e){}</script></head><body>
+<nav><img class="logo-claro" src="/static/logo.png" alt="3D Conex Lab"><img class="logo-escuro" src="/static/logo-noturno.png" alt="3D Conex Lab">
 {% for grupo, links in nav %}<h6>{{grupo}}</h6>{% for h, n in links %}<a href="{{h}}">{{n}}{% if h == '/estoque' %}{% set al = alertas() %}{% if al[0] + al[1] %}<span class="badge" style="background:{{ 'var(--bad)' if al[1] else 'var(--warn)' }}">{{al[0] + al[1]}}</span>{% endif %}{% endif %}</a>{% endfor %}{% endfor %}
-<form method="post" action="/logout"><button class="sec" style="margin-top:14px;width:100%">Sair</button></form></nav>
+<button type="button" id="tema-btn" class="sec tema-btn" onclick="alternarTema()">🌙 Modo noturno</button>
+<form method="post" action="/logout"><button class="sec" style="margin-top:8px;width:100%">Sair</button></form></nav>
 <main>{% set al = alertas() %}{% if al[0] + al[1] %}<a class="alerta {{ 'bad' if al[1] }}" href="/estoque?aba=alertas">⚠ <b>Estoque:</b> {% if al[1] %}<b class="bad">{{al[1]}} acabou</b>{% endif %}{% if al[1] and al[0] %} · {% endif %}{% if al[0] %}<b class="warn">{{al[0]}} acabando</b>{% endif %} — clique para ver</a>{% endif %}{% block body %}{% endblock %}</main><script src="/static/app.js"></script></body></html>

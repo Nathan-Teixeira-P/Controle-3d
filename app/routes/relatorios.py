@@ -74,6 +74,7 @@ def r_estoque(s, ini, fim, **_):
 
 
 def r_produtos(s, ini, fim, **_):
+    sv.atualizar_precos(s)
     vend = {}
     for i in s.exec(select(VendaItem).join(Venda).where(Venda.status == "ativa", Venda.data >= ini, Venda.data <= fim)):
         if i.produto_id:
@@ -100,7 +101,7 @@ def r_producao(s, ini, fim, **_):
     for m in s.exec(select(MovEstoque).where(MovEstoque.motivo == "falha", MovEstoque.ref_tipo == "pedido")):
         falhas[m.ref_id] = falhas.get(m.ref_id, Z) - m.delta
     for p in s.exec(select(Pedido).where(Pedido.criado_em >= ini, Pedido.criado_em < date.fromordinal(fim.toordinal() + 1)).order_by(Pedido.id)):
-        horas = sum((Decimal(s.get(Produto, i.produto_id).tempo_min * i.qtd) / 60 for i in p.itens if i.produto_id), Z)
+        horas = sum((Decimal(s.get(Produto, i.produto_id).tempo_min * i.qtd) / (60 * (s.get(Produto, i.produto_id).lote_qtd or 1)) for i in p.itens if i.produto_id), Z)
         rows.append([p.id, p.tipo, p.cliente.nome if p.cliente else "Estoque", p.status, p.criado_em.strftime("%d/%m/%Y"),
                      p.prazo.strftime("%d/%m/%Y") if p.prazo else "", sum(i.qtd for i in p.itens), horas, falhas.get(p.id, Z), p.custo_extra])
     return ["Pedido", "Tipo", "Cliente", "Status", "Criado", "Prazo", "Peças", "Horas previstas", "Falhas (g)", "Custo das falhas"], rows

@@ -110,3 +110,9 @@ def ler_3mf(caminho):
         return Decimal(str(round(peso, 2))), (int(seg.group(1)) // 60 if seg else 0)
     except Exception:
         return Decimal(0), 0
+
+
+def barreira(request, faltas, action, form, voltar, acao_txt="continuar"):
+    """Tela grande de alerta: falta estoque. 'Continuar' reenvia o mesmo formulário com forcar=1 (estoque fica negativo)."""
+    campos = [(k, v) for k, v in form.multi_items() if isinstance(v, str) and k != "forcar"]
+    return page(request, "barreira.html", faltas=faltas, action=action, campos=campos, voltar=voltar, acao_txt=acao_txt)

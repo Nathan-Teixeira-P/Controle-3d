@@ -6,7 +6,7 @@
 {{campo("cnpj","CNPJ (opcional, sai no PDF)",c.cnpj)}}{{campo("endereco","Endereço (opcional)",c.endereco)}}{{campo("pix","Chave PIX (opcional)",c.pix)}}
 </div><p><button>Salvar</button></p></form>
 
-<div class="card"><h3>Impressoras</h3><p><small>Energia e depreciação da calculadora vêm daqui. Manutenção = custo por hora de uso.</small></p>
+<div class="card scroll"><h3>Impressoras</h3><p><small>Energia e depreciação da calculadora vêm daqui. Manutenção = custo por hora de uso.</small></p>
 {% for i in imps %}<form method="post" action="/impressoras"><input type="hidden" name="id" value="{{i.id}}"><div class="grid">
 {{campo("nome","Nome",i.nome)}}{{num("watts","Consumo (W)",i.watts)}}{{num("valor","Valor (R$)",i.valor)}}{{num("vida_h","Vida útil (h)",i.vida_h)}}{{num("manutencao_h","Manutenção (R$/h)",i.manutencao_h)}}
 <div><label>Horas usadas</label><input value="{{i.horas_acumuladas|dec}}" disabled></div>
@@ -14,7 +14,7 @@
 <div style="align-self:end"><button>Salvar</button></div></div></form><hr>{% endfor %}
 <form method="post" action="/impressoras"><b>+ Nova impressora</b><div class="grid">{{campo("nome","Nome","","text","required")}}{{num("watts","Consumo (W)",150)}}{{num("valor","Valor (R$)",3000)}}{{num("vida_h","Vida útil (h)",4000)}}{{num("manutencao_h","Manutenção (R$/h)",0)}}<div style="align-self:end"><button>Adicionar</button></div></div></form></div>
 
-<div class="card"><h3>Canais de venda</h3><p><small>Taxa % sobre o preço de venda + taxa fixa por venda (ex.: Shopee).</small></p>
+<div class="card scroll"><h3>Canais de venda</h3><p><small>Taxa % sobre o preço de venda + taxa fixa por venda (ex.: Shopee).</small></p>
 {% for c in canais %}<form method="post" action="/canais"><input type="hidden" name="id" value="{{c.id}}"><div class="grid">
 {{campo("nome","Canal",c.nome)}}{{num("taxa_pct","Taxa (%)",c.taxa_pct)}}{{num("taxa_fixa","Taxa fixa (R$)",c.taxa_fixa)}}
 <div><label>Situação</label><select name="ativo"><option value="1">ativo</option><option value="0" {{'selected' if not c.ativo}}>inativo</option></select></div>
@@ -22,7 +22,7 @@
 <hr><form method="post" action="/canais"><b>+ Novo canal</b><div class="grid">{{campo("nome","Canal","","text","required")}}{{num("taxa_pct","Taxa (%)",0)}}{{num("taxa_fixa","Taxa fixa (R$)",0)}}<div style="align-self:end"><button>Adicionar</button></div></div></form></div>
 
 <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px">
-<div class="card"><h3>Backup</h3><p><small>Automático todo dia (guarda 30 dias) na pasta <code>backups/</code>. Copie essa pasta de vez em quando para um pendrive.</small></p>
+<div class="card box"><h3>Backup</h3><p><small>Automático todo dia (guarda 30 dias) na pasta <code>backups/</code>. Copie essa pasta de vez em quando para um pendrive.</small></p>
 <form method="post" action="/backup"><button>Fazer backup agora</button></form>
 {% for b in backups %}<div><a href="/backup/{{b}}">{{b}}</a></div>{% endfor %}</div>
 <div class="card"><h3>Trocar senha</h3><form method="post" action="/senha">

@@ -6,6 +6,6 @@
 </div><p><button>Salvar</button> <a class="btn sec" href="/orcamentos/novo?cliente_id={{c.id}}">Novo orçamento</a></p></form>
 <form method="post" action="/clientes/{{c.id}}/arquivar" onsubmit="return confirm('Arquivar cliente? O histórico é mantido.')"><button class="sec">Arquivar</button></form>
 <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin-top:16px">
-<div class="card"><h3>Orçamentos</h3>{% for o in os %}<div><a href="/orcamentos/{{o.id}}">#{{"%04d"|format(o.id)}}</a> {{o.total|brl}} <span class="tag {{o.status_exib}}">{{o.status_exib}}</span></div>{% else %}—{% endfor %}</div>
-<div class="card"><h3>Pedidos</h3>{% for p in ps %}<div><a href="/pedidos/{{p.id}}">#{{p.id}}</a> {{p.total|brl}} <span class="tag {{p.status}}">{{p.status}}</span></div>{% else %}—{% endfor %}</div>
-<div class="card"><h3>Vendas</h3>{% for v in vs %}<div><a href="/vendas/{{v.id}}">#{{v.id}}</a> {{v.data.strftime("%d/%m/%Y")}} {{v.total|brl}}</div>{% else %}—{% endfor %}</div></div>{% endblock %}
+<div class="card box"><h3>Orçamentos</h3>{% for o in os %}<div><a href="/orcamentos/{{o.id}}">#{{"%04d"|format(o.id)}}</a> {{o.total|brl}} <span class="tag {{o.status_exib}}">{{o.status_exib}}</span></div>{% else %}—{% endfor %}</div>
+<div class="card box"><h3>Pedidos</h3>{% for p in ps %}<div><a href="/pedidos/{{p.id}}">#{{p.id}}</a> {{p.total|brl}} <span class="tag {{p.status}}">{{p.status}}</span></div>{% else %}—{% endfor %}</div>
+<div class="card box"><h3>Vendas</h3>{% for v in vs %}<div><a href="/vendas/{{v.id}}">#{{v.id}}</a> {{v.data.strftime("%d/%m/%Y")}} {{v.total|brl}}</div>{% else %}—{% endfor %}</div></div>{% endblock %}

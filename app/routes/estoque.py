@@ -9,7 +9,7 @@ from sqlmodel import Session, select
 from .. import services as sv
 from ..db import get_session
 from ..models import Insumo, Material, MovEstoque, Produto, Rolo
-from ..util import D, page
+from ..util import D, barreira, page
 
 router = APIRouter()
 
@@ -19,7 +19,7 @@ def _volta(aba, msg=""):
 
 
 @router.get("/estoque")
-def estoque(request: Request, aba: str = "filamentos", s: Session = Depends(get_session)):
+def estoque(request: Request, aba: str = "filamentos", tipo: str = "", motivo: str = "", s: Session = Depends(get_session)):
     sd = sv.saldos(s, "rolo")
     rolos = s.exec(select(Rolo).where(Rolo.ativo).order_by(Rolo.id.desc())).all()
     baixo = sv.estoque_baixo(s)
@@ -34,8 +34,17 @@ def estoque(request: Request, aba: str = "filamentos", s: Session = Depends(get_
                 materiais=s.exec(select(Material).where(Material.ativo).order_by(Material.tipo, Material.cor)).all(),
                 insumos=[(i, sv.saldo(s, "insumo", i.id)) for i in s.exec(select(Insumo).where(Insumo.ativo).order_by(Insumo.nome))],
                 produtos=[(p, sv.saldo(s, "produto", p.id)) for p in s.exec(select(Produto).where(Produto.ativo).order_by(Produto.nome))],
-                movs=s.exec(select(MovEstoque).order_by(MovEstoque.id.desc()).limit(200)).all(),
+                movs=_movimentos(s, tipo, motivo), f_tipo=tipo, f_motivo=motivo,
                 nomes=_nomes(s), baixo=baixo)
+
+
+def _movimentos(s, tipo, motivo):
+    q = select(MovEstoque).order_by(MovEstoque.id.desc()).limit(300)
+    if tipo:
+        q = q.where(MovEstoque.item_tipo == tipo)
+    if motivo:
+        q = q.where(MovEstoque.motivo == motivo)
+    return s.exec(q).all()
 
 
 def _nomes(s):
@@ -60,8 +69,8 @@ def _material(s, tipo, cor, marca, minimo=None):
     return m
 
 
-def _compra(s, m, peso, preco, quando):
-    r = Rolo(material_id=m.id, peso_inicial=peso, preco=preco, comprado_em=quando)
+def _compra(s, m, peso, preco, quando, fornecedor=""):
+    r = Rolo(material_id=m.id, peso_inicial=peso, preco=preco, comprado_em=quando, fornecedor=fornecedor.strip())
     s.add(r); s.flush()
     sv.mov(s, "rolo", r.id, peso, "compra", "rolo", r.id)
 
@@ -71,7 +80,8 @@ async def compra(request: Request, s: Session = Depends(get_session)):
     f = await request.form()
     m = _material(s, f["tipo"], f.get("cor", ""), f.get("marca", ""), D(f.get("minimo_g")) or None)
     for _ in range(max(1, int(D(f.get("qtd"), 1)))):
-        _compra(s, m, D(f["peso"], 1000), D(f["preco"]), date.fromisoformat(f["data"]) if f.get("data") else date.today())
+        _compra(s, m, D(f["peso"], 1000), D(f["preco"]), date.fromisoformat(f["data"]) if f.get("data") else date.today(),
+                f.get("fornecedor", ""))
     s.commit()
     return _volta("filamentos", "Compra registrada")
 
@@ -95,12 +105,28 @@ def rolo_arquivar(id: int, s: Session = Depends(get_session)):
 @router.post("/estoque/insumo")
 async def insumo_salvar(request: Request, s: Session = Depends(get_session)):
     f = await request.form()
-    i = Insumo(nome=f["nome"].strip(), unidade=f.get("unidade", "un"), custo_unit=D(f.get("custo_unit")), minimo=D(f.get("minimo")))
+    i = Insumo(nome=f["nome"].strip(), unidade=f.get("unidade", "un"), custo_unit=D(f.get("custo_unit")), minimo=D(f.get("minimo")),
+               fornecedor=f.get("fornecedor", "").strip())
     s.add(i); s.flush()
     if D(f.get("qtd")):
         sv.mov(s, "insumo", i.id, D(f["qtd"]), "compra", "insumo", i.id)
     s.commit()
     return _volta("insumos", "Insumo criado")
+
+
+@router.post("/estoque/producao")
+async def producao(request: Request, s: Session = Depends(get_session)):
+    """Registra produção direta de um produto: entra no estoque pronto e abate filamento e insumos."""
+    f = await request.form()
+    p, n = s.get(Produto, int(f["item_id"])), D(f["qtd"])
+    if n <= 0:
+        return _volta("produtos", "Informe a quantidade produzida")
+    faltas = sv.faltas_producao(s, p, n)
+    if faltas and not f.get("forcar"):
+        return barreira(request, faltas, "/estoque/producao", f, "/estoque?aba=produtos", "registrar a produção")
+    resumo = sv.registrar_producao(s, p, n, "produto", p.id, "produção registrada no estoque")
+    s.commit()
+    return _volta("produtos", f"{n:.0f} un. de {p.nome} produzidas. Abatido: " + ("; ".join(resumo) or "nada (sem filamento/insumo no produto)"))
 
 
 @router.post("/estoque/mov")
@@ -123,9 +149,9 @@ async def importar(request: Request, s: Session = Depends(get_session)):
         row = {k.strip().lower(): (v or "").strip() for k, v in row.items() if k}
         if row.get("tipo", "").lower() == "filamento":
             m = _material(s, row.get("material", "PLA"), row.get("cor", ""), row.get("marca", ""))
-            _compra(s, m, D(row.get("peso_g"), 1000), D(row.get("preco")), date.today()); n += 1
+            _compra(s, m, D(row.get("peso_g"), 1000), D(row.get("preco")), date.today(), row.get("fornecedor", "")); n += 1
         elif row.get("tipo", "").lower() == "insumo" and row.get("nome"):
-            i = Insumo(nome=row["nome"], unidade=row.get("unidade") or "un", custo_unit=D(row.get("custo_unit")))
+            i = Insumo(nome=row["nome"], unidade=row.get("unidade") or "un", custo_unit=D(row.get("custo_unit")), fornecedor=row.get("fornecedor", ""))
             s.add(i); s.flush()
             if D(row.get("qtd")):
                 sv.mov(s, "insumo", i.id, D(row["qtd"]), "compra", "insumo", i.id)

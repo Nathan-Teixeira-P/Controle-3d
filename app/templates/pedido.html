@@ -7,20 +7,25 @@
 <div><small>Prazo</small><br><b class="{{'bad' if p.atrasado}}">{{p.prazo.strftime("%d/%m/%Y") if p.prazo else '—'}}</b></div>
 <div><small>Orçamento</small><br>{% if p.orcamento_id %}<a href="/orcamentos/{{p.orcamento_id}}">#{{"%04d"|format(p.orcamento_id)}}</a>{% else %}—{% endif %}</div>
 <div><small>Total</small><br><b>{{p.total|brl}}</b></div><div><small>Custo (com falhas)</small><br><b>{{custo|brl}}</b></div></div>
-{% if p.do_estoque %}<p><small>Atendido com produto pronto do estoque (baixa na entrega).</small></p>{% endif %}
+{% if p.tipo == 'cliente' %}<p>Atender com produto já pronto? <b>{{ 'SIM — sai só do estoque pronto (não imprime)' if p.do_estoque else 'NÃO — imprime (gasta só filamento e insumos)' }}</b>
+{% if p.status == 'aguardando' %}<form method="post" action="/pedidos/{{p.id}}/atendimento" style="display:inline-flex;gap:6px;margin-left:10px"><select name="do_estoque" style="width:auto"><option value="0" {{'selected' if not p.do_estoque}}>Não, imprimir</option><option value="1" {{'selected' if p.do_estoque}}>Sim, do estoque pronto</option></select><button class="sec">Alterar</button></form>{% endif %}</p>{% endif %}
 {% if p.observacoes %}<p>{{p.observacoes}}</p>{% endif %}</div>
 
-<div class="card"><h3>Itens</h3><table><tr><th>Item</th><th>Personalização</th><th class="r">Qtd</th><th class="r">Preço</th><th class="r">Custo unit.</th></tr>
-{% for i in p.itens %}<tr><td>{{i.descricao}}{% if i.produto_id in arquivos %} <a href="/projetos/{{arquivos[i.produto_id].id}}/baixar" title="{{arquivos[i.produto_id].arquivo_nome}}">📁 arquivo</a>{% endif %}</td><td>{{i.personalizacao}}</td><td class="r">{{i.qtd}}</td><td class="r">{{i.preco_unit|brl}}</td><td class="r">{{i.custo_unit|brl}}</td></tr>{% endfor %}</table></div>
+<div class="card scroll"><h3>Itens</h3><table><tr><th>Item</th><th>Personalização</th><th class="r">Qtd</th><th class="r">Do estoque pronto</th><th class="r">Preço</th><th class="r">Custo unit.</th></tr>
+{% for i in p.itens %}<tr><td>{{i.descricao}}{% if i.produto_id in arquivos %} <a href="/projetos/{{arquivos[i.produto_id].id}}/baixar" title="{{arquivos[i.produto_id].arquivo_nome}}">📁 arquivo</a>{% endif %}</td><td>{{i.personalizacao}}</td><td class="r">{{i.qtd}}</td><td class="r">{{ pronta[i.id] or "—" }}</td><td class="r">{{i.preco_unit|brl}}</td><td class="r">{{i.custo_unit|brl}}</td></tr>{% endfor %}</table></div>
 
 {% set idx = ordem.index(p.status) if p.status in ordem else -1 %}
 {% if p.status == 'cancelado' %}
 <form method="post" action="/pedidos/{{p.id}}/mover"><input type="hidden" name="para" value="aguardando"><button>Reabrir pedido</button></form>
 {% elif request.query_params.get('confirmar') and p.status == 'aguardando' %}
-<form method="post" action="/pedidos/{{p.id}}/mover" class="card"><input type="hidden" name="para" value="imprimindo"><h3>Iniciar impressão — confirme o filamento</h3>
-<p><small>Gramas previstas já preenchidas; ajuste se usou diferente.</small></p>
+<form method="post" action="/pedidos/{{p.id}}/mover" class="card"><input type="hidden" name="para" value="imprimindo"><input type="hidden" name="confirmado" value="1"><h3>Iniciar impressão — confirme o que será gasto do estoque</h3>
+<p><small>Quantidades previstas já preenchidas; ajuste se usar diferente. Se um rolo não bastar, o restante sai dos outros rolos do mesmo material.</small></p>
 {% for pl in plano %}<div class="grid row"><div><label>{{pl.material.nome}}</label><select name="rolo">{% for r, sl in pl.rolos %}<option value="{{r.id}}">Rolo #{{r.id}} — {{sl|dec(0)}} g restantes</option>{% else %}<option value="">(sem rolo em estoque — não baixa)</option>{% endfor %}</select></div>
-<div><label>Gramas</label><input name="gramas" type="number" step="any" value="{{pl.gramas}}"></div></div>{% endfor %}
+<div><label>Gramas</label><input name="gramas" type="number" step="any" value="{{pl.gramas}}"></div>
+{% if (pl.rolos|sum(attribute=1)) < pl.gramas %}<div style="align-self:end" class="bad">⚠ só há {{ (pl.rolos|sum(attribute=1))|dec(0) }} g em estoque</div>{% endif %}</div>{% endfor %}
+{% for pi in pins %}<div class="grid row"><div><label>Insumo</label><input type="hidden" name="ins_id" value="{{pi.insumo.id}}"><input value="{{pi.insumo.nome}} (saldo {{pi.saldo|dec(0)}} {{pi.insumo.unidade}})" disabled></div>
+<div><label>Quantidade ({{pi.insumo.unidade}})</label><input name="ins_q" type="number" step="any" value="{{pi.qtd|round(2)}}"></div>
+{% if pi.saldo < pi.qtd %}<div style="align-self:end" class="bad">⚠ estoque insuficiente</div>{% endif %}</div>{% endfor %}
 <p><button>Começar a imprimir</button> <a class="btn sec" href="/pedidos/{{p.id}}">Cancelar</a></p></form>
 {% else %}
 <div class="card" style="display:flex;gap:8px;flex-wrap:wrap">
@@ -34,5 +39,5 @@
 <div><label>Rolo</label><select name="rolo">{% for r, sl in rolos %}<option value="{{r.id}}">Rolo #{{r.id}} ({{sl|dec(0)}} g)</option>{% endfor %}</select></div>
 <div><label>Gramas perdidas</label><input name="gramas" type="number" step="any" required></div><div><label>Obs.</label><input name="obs"></div>
 <div style="align-self:end"><button class="sec">Registrar</button></div></div></form>{% endif %}
-<div class="card"><h3>Histórico</h3>{% for h in p.historico %}<div>{{h.em.strftime("%d/%m %H:%M")}} — {{h.de or '·'}} → <b>{{h.para}}</b></div>{% endfor %}</div>
+<div class="card scroll"><h3>Histórico</h3>{% for h in p.historico %}<div>{{h.em.strftime("%d/%m %H:%M")}} — {{h.de or '·'}} → <b>{{h.para}}</b></div>{% endfor %}</div>
 {% endblock %}

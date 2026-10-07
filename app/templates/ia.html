@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% block body %}
-<h1>Assistente IA <small style="font-weight:400;color:#777">modelo local: {{modelo}}</small></h1>
+<h1>Assistente IA <small style="font-weight:400;color:var(--muted)">modelo local: {{modelo}}</small></h1>
 <p><small>Roda no próprio computador, sem internet. Só sugere textos e responde perguntas — nunca altera dados.</small></p>
 <form method="post" action="/ia/perguntar" class="card"><label>Pergunte sobre o negócio</label><input name="pergunta" value="{{pergunta}}" placeholder="Quanto lucrei este mês? Quanto vendi de chaveiro? O que está com estoque baixo?" required>
 <p><button>Perguntar</button></p></form>

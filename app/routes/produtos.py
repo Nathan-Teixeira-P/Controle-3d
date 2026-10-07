@@ -1,17 +1,18 @@
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlmodel import Session, or_, select
 
 from .. import services as sv
 from ..db import get_session
 from ..models import Canal, Impressora, Insumo, Material, Produto, ProdutoInsumo, ProdutoMaterial, Projeto
-from ..util import D, page, paginate, salvar_upload
+from ..util import D, page, paginate, salvar_upload, tpl
 
 router = APIRouter()
 
 
 @router.get("/produtos")
 def produtos(request: Request, q: str = "", categoria: str = "", pagina: int = 1, s: Session = Depends(get_session)):
+    sv.atualizar_precos(s)
     st = select(Produto).where(Produto.ativo).order_by(Produto.nome)
     if q:
         st = st.where(or_(Produto.nome.ilike(f"%{q}%"), Produto.sku.ilike(f"%{q}%")))
@@ -39,16 +40,25 @@ def _form_ctx(s):
 @router.get("/produtos/novo")
 def produto_novo(request: Request, projeto_id: int = 0, s: Session = Depends(get_session)):
     pre = s.get(Projeto, projeto_id) if projeto_id else None  # pré-preenche com o projeto escolhido
-    return page(request, "produto.html", p=None, pre=pre, calc=None, por_canal=[], **_form_ctx(s))
+    return page(request, "produto.html", p=None, pre=pre, por_canal=[], estoque=None, msg="", **_form_ctx(s))
 
 
 @router.get("/produtos/{id}")
 def produto_ver(id: int, request: Request, s: Session = Depends(get_session)):
+    sv.atualizar_precos(s)
     p = s.get(Produto, id)
     cfg = sv.get_config(s)
     por_canal = [(c, sv.custo_produto(s, p, cfg, c)["preco"]) for c in s.exec(select(Canal).where(Canal.ativo))]
-    return page(request, "produto.html", p=p, pre=None, calc=sv.custo_produto(s, p, cfg), por_canal=por_canal,
-                estoque=sv.saldo(s, "produto", id), **_form_ctx(s))
+    return page(request, "produto.html", p=p, pre=None, por_canal=por_canal,
+                estoque=sv.saldo(s, "produto", id), msg=request.query_params.get("msg", ""), **_form_ctx(s))
+
+
+@router.post("/produtos/calcular")
+async def produto_calcular(request: Request, s: Session = Depends(get_session)):
+    """Pré-visualização ao vivo (custo do lote, por unidade e preço sugerido) enquanto edita a ficha."""
+    res = sv.calcular_form(s, await request.form())
+    return HTMLResponse(tpl.get_template("_calc_resultado.html").render(
+        r=res["r"], detalhe=res["detalhe"], ins_det=res["ins_det"]))
 
 
 @router.post("/produtos")
@@ -66,6 +76,15 @@ async def produto_salvar(request: Request, s: Session = Depends(get_session)):
     for k in ("preco", "margem_pct", "minimo", "embalagem", "acessorios"):
         setattr(p, k, D(f.get(k)))
     p.min_trabalho = int(D(f.get("min_trabalho")))
+    p.lote_qtd = max(int(D(f.get("lote_qtd"), 1)), 1)
+    p.fornecedor = f.get("fornecedor", "").strip()
+    sug = sv.calcular_form(s, f)["r"]["preco"]
+    if "preco_manual" in f:
+        p.preco_manual = f.get("preco_manual") == "1"
+    else:  # formulário sem a marca (sem JS): preço diferente do sugerido = digitado à mão
+        p.preco_manual = bool(p.preco > 0 and sug and abs(p.preco - sug) > D("0.01"))
+    if not p.preco_manual and p.preco <= 0:  # sem preço: usa o sugerido (custo + margem)
+        p.preco = sug or D(0)
     p.projeto_id = int(f["projeto_id"]) if f.get("projeto_id") else None
     p.modelo = f.get("modelo_link", "").strip()
     if foto := await salvar_upload(f.get("foto"), foto=True):

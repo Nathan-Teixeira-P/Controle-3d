@@ -3,7 +3,7 @@ from datetime import date
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Form, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from sqlmodel import Session, select
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -43,6 +43,15 @@ def seed():
         if not s.exec(select(Impressora)).first():
             s.add(Impressora(nome="Bambu Lab A1 (AMS Lite)", watts=100, valor=4000, vida_h=5000, manutencao_h=0.5))
             s.commit()
+
+
+@app.exception_handler(Exception)
+async def erro_amigavel(request, exc):
+    import logging
+    logging.getLogger("uvicorn.error").exception("Erro em %s", request.url.path, exc_info=exc)
+    return HTMLResponse('<meta charset="utf-8"><body style="font:16px system-ui;padding:40px"><h2>Algo deu errado 😕</h2>'
+                        '<p>A página pode estar desatualizada ou o registro já foi apagado.</p>'
+                        '<p><a href="/">Voltar ao início</a> · <a href="javascript:history.back()">Voltar</a></p>', status_code=500)
 
 
 @app.get("/health")
@@ -107,11 +116,13 @@ def tarefa_nova(titulo: str = Form(), data: date = Form(), hora: str = Form(""),
 
 @app.post("/tarefas/{id}/toggle")
 def tarefa_toggle(id: int, s: Session = Depends(get_session)):
-    sv.concluir_tarefa(s, s.get(Tarefa, id))
+    if t := s.get(Tarefa, id):  # já pode ter sido apagada (página desatualizada)
+        sv.concluir_tarefa(s, t)
     return RedirectResponse("/", 303)
 
 
 @app.post("/tarefas/{id}/excluir")
 def tarefa_excluir(id: int, s: Session = Depends(get_session)):
-    s.delete(s.get(Tarefa, id)); s.commit()
+    if t := s.get(Tarefa, id):
+        s.delete(t); s.commit()
     return RedirectResponse("/", 303)

@@ -1,0 +1,7 @@
+/* Cores do tema claro/noturno (variáveis). O tema fica em <html data-tema="dark|light">. */
+:root{--p:#7b1a8c;--btn:#7b1a8c;--bg:#f6f4f8;--card:#fff;--text:#222;--muted:#777;--border:#ddd;--line:#eee;--th:#faf7fb;--input:#fff;
+--sec:#e7e1ea;--sec-text:#333;--col:#ece7ef;--hover:#eee;--warn-bg:#fff4d6;--bad-bg:#ffe3e3;--tag:#eee;--ok-bg:#c8e6c9;--bad-tag:#ffcdd2;--amber-tag:#ffe0a3;
+--msg-bg:#e8f5e9;--msg-border:#a5d6a7;--ok:#1a7f37;--bad:#c62828;--warn:#e69500;--shadow:#0001;color-scheme:light}
+:root[data-tema=dark]{--p:#c58be0;--btn:#8e2aa3;--bg:#14111a;--card:#1e1a26;--text:#e8e4ee;--muted:#a39db0;--border:#3a3446;--line:#2c2736;--th:#26212f;--input:#262130;
+--sec:#3a3446;--sec-text:#e8e4ee;--col:#231f2c;--hover:#2c2736;--warn-bg:#3d3216;--bad-bg:#3f1d22;--tag:#3a3446;--ok-bg:#1f4a2c;--bad-tag:#5a2229;--amber-tag:#5c4413;
+--msg-bg:#1c3524;--msg-border:#2e6b43;--ok:#4cc474;--bad:#ff6b6b;--warn:#f5b041;--shadow:#0006;color-scheme:dark}

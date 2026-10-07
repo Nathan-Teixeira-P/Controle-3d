@@ -1,0 +1,14 @@
+{# Resultado do cálculo: coluna do lote e por unidade. Usado na calculadora e na ficha do produto (ao vivo). #}
+<table>
+<tr><th></th><th class="r">Lote de {{r.lote}} un.</th><th class="r">Por unidade</th></tr>
+{% for d in detalhe %}<tr><td><small>🧵 {{d.nome}} · {{d.g|dec(1)}} g × {{d.cg|dec(4)}}/g</small></td><td class="r"><small>{{d.custo|brl}}</small></td><td class="r"><small>{{(d.custo / r.lote)|brl}}</small></td></tr>{% endfor %}
+{% for d in ins_det %}<tr><td><small>🔩 {{d.nome}} · {{d.q|dec(2)}} {{d.un}}</small></td><td class="r"><small>{{d.custo|brl}}</small></td><td class="r"><small>{{(d.custo / r.lote)|brl}}</small></td></tr>{% endfor %}
+{% for k,l in [("filamento","Filamento (total)"),("energia","Energia"),("deprec","Desgaste da máquina"),("mao","Mão de obra"),("rateio","Rateio de custos fixos"),("embalagem","Embalagem"),("acessorios","Acessórios + insumos + outros"),("falhas","Perdas/falhas")] %}
+<tr><td>{{l}}</td><td class="r">{{r[k]|brl}}</td><td class="r">{{(r[k] / r.lote)|brl}}</td></tr>{% endfor %}
+<tr><td><b>Custo total</b></td><td class="r"><b>{{r.custo_lote|brl}}</b></td><td class="r"><b>{{r.custo|brl}}</b></td></tr>
+{% if r.preco is none %}<tr><td colspan="3" class="bad">Margem + taxa do canal ≥ 100%: não há preço possível.</td></tr>
+{% else %}<tr><td>Taxa do canal / unidade</td><td></td><td class="r">{{r.taxa|brl}}</td></tr>
+<tr><td>Lucro / unidade</td><td></td><td class="r">{{r.lucro|brl}}</td></tr>
+<tr><td><b>Preço de venda sugerido</b></td><td class="r"><b>{{r.preco_lote|brl}}</b></td><td class="r"><b>{{r.preco|brl}}</b></td></tr>{% endif %}
+</table>
+<span id="calc-sug" data-sug="{{ r.preco if r.preco is not none else '' }}" hidden></span>

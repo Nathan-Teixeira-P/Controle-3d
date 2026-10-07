@@ -25,7 +25,7 @@ services:
       OLLAMA_URL: http://ollama:11434
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:1.5b}
     ports:
-      - "6000:8000"
+      - "3000:8000"
     volumes:
       - ./app:/app/app      # edição de código reflete ao reiniciar
       - uploads:/app/uploads
@@ -35,7 +35,8 @@ services:
       interval: 30s
       retries: 3
 
-  # backup diário (30 dias) + botão "backup agora" (arquivo-sinal /backups/.agora)
+  # Backup a cada 6 h (banco: 30 dias; arquivos enviados: 3 últimos) + botão "backup agora".
+  # Se o banco subir vazio e houver backup com dados em ./backups, restaura sozinho (ver backup.sh).
   backup:
     image: postgres:16-alpine
     restart: unless-stopped
@@ -46,18 +47,9 @@ services:
       PGPASSWORD: ${DB_PASSWORD:-controle}
     volumes:
       - ./backups:/backups
-    entrypoint: ["sh", "-c"]
-    command:
-      - |
-        while true; do
-          if [ -f /backups/.agora ] || [ ! -f /backups/.ultimo ] || [ -n "$$(find /backups/.ultimo -mmin +1440)" ]; then
-            rm -f /backups/.agora
-            f=/backups/controle-$$(date +%F-%H%M).sql
-            if pg_dump -h db -U controle controle > $$f && gzip -f $$f; then touch /backups/.ultimo; else rm -f $$f; sleep 60; fi
-            find /backups -name 'controle-*.sql.gz' -mtime +30 -delete
-          fi
-          sleep 10
-        done
+      - ./backup.sh:/backup.sh:ro
+      - uploads:/uploads
+    entrypoint: ["sh", "/backup.sh"]
 
   # IA local opcional: docker compose --profile ia up -d  &&  docker compose exec ollama ollama pull qwen2.5:1.5b
   ollama:
@@ -67,7 +59,8 @@ services:
     volumes:
       - ollama:/root/.ollama
 
+# Volumes "external": `docker compose down -v` NÃO os apaga. Crie uma vez com iniciar.bat / iniciar.sh.
 volumes:
-  pgdata:
-  uploads:
+  pgdata: {external: true, name: controle_pgdata}
+  uploads: {external: true, name: controle_uploads}
   ollama:

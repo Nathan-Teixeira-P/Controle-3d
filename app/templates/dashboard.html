@@ -1,32 +1,32 @@
 {% extends "base.html" %}
 {% macro lista(ts, mostra_data=False) %}
-{% for t in ts %}<div style="display:flex;gap:8px;align-items:center;padding:4px 0;border-bottom:1px solid #eee">
+{% for t in ts %}<div style="display:flex;gap:8px;align-items:center;padding:4px 0;border-bottom:1px solid var(--line)">
 <form method="post" action="/tarefas/{{t.id}}/toggle"><button class="lnk">{{ "☑" if t.feita else "☐" }}</button></form>
-<span style="flex:1;{{ 'text-decoration:line-through;color:#999' if t.feita }}">{% if mostra_data %}<b>{{t.data.strftime("%d/%m")}}</b> {% endif %}{% if t.hora %}<b>{{t.hora}}</b> {% endif %}{{t.titulo}}{% if t.recorrencia %} <small>↻</small>{% endif %}</span>
+<span style="flex:1;{{ 'text-decoration:line-through;color:var(--muted)' if t.feita }}">{% if mostra_data %}<b>{{t.data.strftime("%d/%m")}}</b> {% endif %}{% if t.hora %}<b>{{t.hora}}</b> {% endif %}{{t.titulo}}{% if t.recorrencia %} <small>↻</small>{% endif %}</span>
 <form method="post" action="/tarefas/{{t.id}}/excluir"><button class="lnk bad">✕</button></form></div>
-{% else %}<p style="color:#888">Nada por aqui.</p>{% endfor %}
+{% else %}<p class="muted">Nada por aqui.</p>{% endfor %}
 {% endmacro %}
 {% block body %}
-<h1>Dashboard <small style="font-weight:400;color:#777">{{hoje.strftime("%m/%Y")}}</small></h1>
-<div class="grid">
+<h1>Dashboard <small style="font-weight:400;color:var(--muted)">{{hoje.strftime("%m/%Y")}}</small></h1>
+<div class="grid kpis">
 <div class="card kpi"><small>Faturamento</small><h2>{{d.faturamento|brl}}</h2></div>
-<div class="card kpi"><small>Custos (produtos + despesas)</small><h2>{{d.custos|brl}}</h2><small>taxas de canal: {{d.taxas|brl}}</small></div>
+<div class="card kpi"><small>Custos do mês</small><h2>{{d.custos|brl}}</h2><small>taxas de canal: {{d.taxas|brl}}</small></div>
 <div class="card kpi"><small>Lucro</small><h2 class="{{ 'ok' if d.lucro >= 0 else 'bad' }}">{{d.lucro|brl}}</h2></div>
 <div class="card kpi"><small>Vendas do mês</small><h2>{{d.n}}</h2></div>
 <div class="card kpi"><small>Em produção</small><h2>{{d.em_producao|length}}</h2></div>
 <div class="card kpi"><small>Orçamentos em aberto</small><h2>{{d.n_abertos}}</h2>{{d.v_abertos|brl}}</div>
 </div>
 <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px">
-<div class="card"><h3>Tarefas de hoje ({{hoje.strftime("%d/%m")}})</h3>
+<div class="card box"><h3>Tarefas de hoje ({{hoje.strftime("%d/%m")}})</h3>
 {% if d.atrasadas %}<b class="bad">Atrasadas</b>{{ lista(d.atrasadas, True) }}<hr>{% endif %}
 {{ lista(d.de_hoje) }}
 <form method="post" action="/tarefas" style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
 <input name="titulo" placeholder="Nova tarefa" required style="flex:1;min-width:140px"><input name="data" type="date" value="{{hoje}}" style="width:140px"><input name="hora" type="time" style="width:100px">
 <select name="recorrencia" style="width:110px"><option value="">única</option><option value="diaria">diária</option><option value="semanal">semanal</option></select><button>+</button></form></div>
-<div class="card"><h3>Agenda — próximos 7 dias</h3>{{ lista(d.agenda, True) }}
+<div class="card box"><h3>Agenda — próximos 7 dias</h3>{{ lista(d.agenda, True) }}
 {% if d.prazos %}<h4>Entregas de pedidos</h4>{% for p in d.prazos %}<div><b class="{{ 'bad' if p.atrasado }}">{{p.prazo.strftime("%d/%m")}}</b> <a href="/pedidos/{{p.id}}">Pedido #{{p.id}}</a> {{p.cliente.nome if p.cliente else 'Estoque'}} <span class="tag">{{p.status}}</span></div>{% endfor %}{% endif %}</div>
-<div class="card"><h3>Pedidos em produção</h3>{% for p in d.em_producao %}<div><a href="/pedidos/{{p.id}}">#{{p.id}}</a> {{p.cliente.nome if p.cliente else 'Estoque'}} <span class="tag">{{p.status}}</span></div>{% else %}<p style="color:#888">Nenhum.</p>{% endfor %}
+<div class="card box"><h3>Pedidos em produção</h3>{% for p in d.em_producao %}<div><a href="/pedidos/{{p.id}}">#{{p.id}}</a> {{p.cliente.nome if p.cliente else 'Estoque'}} <span class="tag">{{p.status}}</span></div>{% else %}<p class="muted">Nenhum.</p>{% endfor %}
 {% if d.atrasados %}<h4 class="bad">Entregas atrasadas</h4>{% for p in d.atrasados %}<div><a href="/pedidos/{{p.id}}">#{{p.id}}</a> {{p.prazo.strftime("%d/%m")}} {{p.cliente.nome if p.cliente else 'Estoque'}}</div>{% endfor %}{% endif %}</div>
-<div class="card"><h3>Estoque <a href="/estoque?aba=alertas" style="font-size:13px;font-weight:400">ver tudo</a></h3>{% for a in d.baixo %}<div class="{{ 'bad' if a.status == 'acabou' else 'warn' }}"><b>{{ 'ACABOU' if a.status == 'acabou' else 'Acabando' }}</b> · {{a.tipo}}: {{a.nome}} — {{a.saldo|dec(0)}}{% if a.minimo %} (mín. {{a.minimo|dec(0)}}){% endif %}</div>{% else %}<p style="color:#888">Tudo certo.</p>{% endfor %}</div>
-<div class="card"><h3>Mais vendidos do mês</h3>{% for n,q in d.mais_vendidos %}<div>{{loop.index}}. {{n}} — <b>{{q}}</b></div>{% else %}<p style="color:#888">Sem vendas ainda.</p>{% endfor %}</div>
+<div class="card box"><h3>Estoque <a href="/estoque?aba=alertas" style="font-size:13px;font-weight:400">ver tudo</a></h3>{% for a in d.baixo %}<div class="{{ 'bad' if a.status == 'acabou' else 'warn' }}"><b>{{ 'ACABOU' if a.status == 'acabou' else 'Acabando' }}</b> · {{a.tipo}}: {{a.nome}} — {{a.saldo|dec(0)}}{% if a.minimo %} (mín. {{a.minimo|dec(0)}}){% endif %}</div>{% else %}<p class="muted">Tudo certo.</p>{% endfor %}</div>
+<div class="card box"><h3>Mais vendidos do mês</h3>{% for n,q in d.mais_vendidos %}<div>{{loop.index}}. {{n}} — <b>{{q}}</b></div>{% else %}<p class="muted">Sem vendas ainda.</p>{% endfor %}</div>
 </div>{% endblock %}

@@ -14,6 +14,7 @@ router = APIRouter()
 
 
 def _ctx_form(s):
+    sv.atualizar_precos(s)
     return dict(clientes=s.exec(select(Cliente).where(Cliente.ativo).order_by(Cliente.nome)).all(),
                 canais=s.exec(select(Canal).where(Canal.ativo)).all(),
                 produtos=s.exec(select(Produto).where(Produto.ativo).order_by(Produto.nome)).all())
@@ -44,6 +45,7 @@ def editar(id: int, request: Request, s: Session = Depends(get_session)):
 
 @router.post("/orcamentos")
 async def salvar(request: Request, s: Session = Depends(get_session)):
+    sv.atualizar_precos(s)
     f = await request.form()
     o = s.get(Orcamento, int(f["id"])) if f.get("id") else Orcamento(cliente_id=0)
     o.cliente_id = int(f["cliente_id"])
@@ -103,7 +105,7 @@ async def aprovar(id: int, request: Request, s: Session = Depends(get_session)):
     if o.status != "aberto" or not o.itens:
         return RedirectResponse(f"/orcamentos/{id}", 303)
     f = await request.form()
-    ped = sv.criar_pedido_de_orcamento(s, o, date.fromisoformat(f["prazo"]) if f.get("prazo") else None)
+    ped = sv.criar_pedido_de_orcamento(s, o, date.fromisoformat(f["prazo"]) if f.get("prazo") else None, f.get("do_estoque") == "1")
     return RedirectResponse(f"/pedidos/{ped.id}", 303)
 
 

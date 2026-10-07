@@ -10,7 +10,7 @@
 {% elif o.status == 'recusado' %}<form method="post" action="/orcamentos/{{o.id}}/status"><input type="hidden" name="status" value="aberto"><button class="sec">Reabrir</button></form>{% endif %}
 {% if o.status != 'aprovado' %}<form method="post" action="/orcamentos/{{o.id}}/excluir" onsubmit="return confirm('Excluir orçamento?')"><button class="bad">Excluir</button></form>{% endif %}
 </div>
-{% if o.status == 'aberto' %}<form method="post" action="/orcamentos/{{o.id}}/aprovar" class="card" style="display:flex;gap:8px;align-items:end"><div><label>Prazo de entrega</label><input type="date" name="prazo" value="{{prazo}}"></div><button>✔ Aprovar → gerar pedido</button></form>{% endif %}
+{% if o.status == 'aberto' %}<form method="post" action="/orcamentos/{{o.id}}/aprovar" class="card" style="display:flex;gap:8px;align-items:end"><div><label>Prazo de entrega</label><input type="date" name="prazo" value="{{prazo}}"></div><div><label>Atender com produto já pronto?</label><select name="do_estoque"><option value="0">Não — imprimir (gasta filamento e insumos)</option><option value="1">Sim — baixar do estoque pronto</option></select></div><button>✔ Aprovar → gerar pedido</button></form>{% endif %}
 <textarea id="ia" rows="4" style="display:none;margin-bottom:12px"></textarea>
 <div class="card" style="padding:0;overflow:hidden"><iframe src="/orcamentos/{{o.id}}/doc" style="width:100%;height:1000px;border:0" title="Orçamento"></iframe></div>
 {% endblock %}

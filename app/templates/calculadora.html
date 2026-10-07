@@ -1,9 +1,10 @@
 {% extends "base.html" %}{% from "_m.html" import campo, num, opts %}
 {% macro linha_fil(l) %}<div class="row grid"><div><label>Filamento</label><select name="mat_id" onchange="this.closest('.row').querySelector('.man').style.display=this.value?'none':'contents'">
 <option value="">— manual (informar valor) —</option>{% for m in materiais %}<option value="{{m.id}}" {{'selected' if l.material_id|string == m.id|string}}>{{m.nome}}</option>{% endfor %}</select></div>
-{{num("mat_g","Gramas usadas",l.g)}}<div class="man" style="display:{{ 'none' if l.material_id else 'contents' }}">{{num("mat_preco","Valor do rolo (R$)",l.preco)}}{{num("mat_pesorolo","Peso do rolo (g)",l.peso_rolo or 1000)}}</div>
+{{num("mat_g","Gramas no lote",l.g)}}<div class="man" style="display:{{ 'none' if l.material_id else 'contents' }}">{{num("mat_preco","Valor do rolo (R$)",l.preco)}}{{num("mat_pesorolo","Peso do rolo (g)",l.peso_rolo or 1000)}}</div>
 <div style="align-self:end"><button type="button" class="sec" onclick="rm(this)">✕</button></div></div>{% endmacro %}
-{% macro linha_out(o) %}<div class="row grid">{{campo("out_desc","Outro custo (ex.: parafusos, tinta, taxa)",o.desc)}}{{num("out_valor","Valor (R$)",o.valor)}}<div style="align-self:end"><button type="button" class="sec" onclick="rm(this)">✕</button></div></div>{% endmacro %}
+{% macro linha_ins(i) %}<div class="row grid"><div><label>Insumo do estoque</label><select name="ins_id">{{ opts(insumos, i.insumo_id|int if i.insumo_id else none) }}</select></div>{{num("ins_q","Quantidade no lote",i.q)}}<div style="align-self:end"><button type="button" class="sec" onclick="rm(this)">✕</button></div></div>{% endmacro %}
+{% macro linha_out(o) %}<div class="row grid">{{campo("out_desc","Outro custo (ex.: tinta, taxa)",o.desc)}}{{num("out_valor","Valor (R$)",o.valor)}}<div style="align-self:end"><button type="button" class="sec" onclick="rm(this)">✕</button></div></div>{% endmacro %}
 {% block body %}
 <h1>Calculadora de custo</h1>
 <div class="card"><b>Parâmetros em uso</b> <small>(cadastre em <a href="/config">Configurações</a>)</small>
@@ -12,23 +13,36 @@
 {% for i in imps %}<div><small>{{i.nome}}</small><br><b>{{i.watts|dec(0)}} W · desgaste {{i.custo_hora|brl}}/h</b></div>{% endfor %}</div></div>
 {% if not imps %}<div class="msg">Cadastre uma impressora em <a href="/config">Configurações</a> para incluir energia e desgaste.</div>{% endif %}
 <form method="post" action="/calculadora" class="card">
+<p><small>Preencha tudo para <b>uma produção (lote)</b>: se imprime 10 peças de uma vez, informe o tempo, as gramas e os insumos das 10 e a quantidade produzida = 10. O sistema mostra o total e o valor por unidade.</small></p>
 <div class="grid"><div><label>Projeto salvo (preenche gramas e horas)</label><select name="projeto_id" onchange="const o=this.selectedOptions[0];if(o.dataset.peso){let g=document.querySelector('#fils [name=mat_g]');if(!g){addRow('tf','fils');g=document.querySelector('#fils [name=mat_g]')}g.value=o.dataset.peso;horas.value=o.dataset.horas}"><option value="">— nenhum —</option>{% for j in projetos %}<option value="{{j.id}}" data-peso="{{j.peso_g}}" data-horas="{{(j.tempo_min/60)|round(2)}}" {{'selected' if f.get('projeto_id')|string == j.id|string}}>{{j.nome}}</option>{% endfor %}</select></div>
 <div><label>Impressora</label><select name="impressora_id">{{ opts(imps, f.get('impressora_id')|int if f.get('impressora_id') else none, "— nenhuma —") }}</select></div>
 <div><label>Canal de venda</label><select name="canal_id">{{ opts(canais, f.get('canal_id')|int if f.get('canal_id') else none, "— sem taxa —") }}</select></div>
-{{num("horas","Tempo de impressão (h)",f.get("horas"))}}{{num("min_trabalho","Mão de obra / acabamento (min)",f.get("min_trabalho", 0))}}
-{{num("embalagem","Embalagem (R$)",f.get("embalagem", 0))}}{{num("acessorios","Acessórios (R$)",f.get("acessorios", 0))}}{{num("margem_pct","Margem (%)",f.get("margem_pct", c.margem_pct))}}</div>
+{{num("lote_qtd","Quantidade produzida no lote (un.)",f.get("lote_qtd", 1))}}
+{{num("horas","Tempo de impressão do lote (h)",f.get("horas"))}}{{num("min_trabalho","Mão de obra / acabamento do lote (min)",f.get("min_trabalho", 0))}}
+{{num("embalagem","Embalagem do lote (R$)",f.get("embalagem", 0))}}{{num("acessorios","Acessórios do lote (R$)",f.get("acessorios", 0))}}{{num("margem_pct","Margem (%)",f.get("margem_pct", c.margem_pct))}}</div>
 <h3>Filamentos (um ou vários)</h3><div id="fils">{% for l in fils %}{{ linha_fil(l) }}{% endfor %}</div><button type="button" class="sec" onclick="addRow('tf','fils')">+ Filamento</button>
+<h3>Insumos do estoque</h3><div id="inss">{% for i in ins %}{{ linha_ins(i) }}{% endfor %}</div><button type="button" class="sec" onclick="addRow('ti','inss')">+ Insumo</button>
 <h3>Outros custos</h3><div id="outs">{% for o in outros %}{{ linha_out(o) }}{% endfor %}</div><button type="button" class="sec" onclick="addRow('to','outs')">+ Outro custo</button>
-<template id="tf">{{ linha_fil({"material_id":"","g":"","preco":"","peso_rolo":"1000"}) }}</template><template id="to">{{ linha_out({"desc":"","valor":""}) }}</template>
-<p><button>Calcular</button></p></form>
-{% if r %}<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px"><div class="card"><table>
-{% for d in detalhe %}<tr><td><small>{{d.nome}} · {{d.g|dec(1)}} g × {{d.cg|dec(4)}}/g</small></td><td class="r"><small>{{d.custo|brl}}</small></td></tr>{% endfor %}
-{% for k,l in [("filamento","Filamento (total)"),("energia","Energia"),("deprec","Desgaste da máquina"),("mao","Mão de obra"),("rateio","Rateio de custos fixos"),("embalagem","Embalagem"),("acessorios","Acessórios + outros"),("falhas","Perdas/falhas"),("custo","<b>Custo total</b>"),("taxa","Taxa do canal"),("lucro","Lucro"),("preco","<b>Preço sugerido</b>")] %}
-<tr><td>{{l|safe}}</td><td class="r">{% if r[k] is none %}<span class="bad">margem+taxa ≥ 100%</span>{% else %}{{r[k]|brl}}{% endif %}</td></tr>{% endfor %}</table></div>
-<div class="card"><h3>Preço sugerido por canal</h3><table>{% for cn,pr in por_canal %}<tr><td>{{cn.nome}} ({{cn.taxa_pct|dec}}%{% if cn.taxa_fixa %} + {{cn.taxa_fixa|brl}}{% endif %})</td><td class="r">{{pr|brl if pr else '—'}}</td></tr>{% endfor %}</table>
+<template id="tf">{{ linha_fil({"material_id":"","g":"","preco":"","peso_rolo":"1000"}) }}</template><template id="ti">{{ linha_ins({"insumo_id":"","q":1}) }}</template><template id="to">{{ linha_out({"desc":"","valor":""}) }}</template>
+<p><button>Ver preço por canal / salvar como produto</button> <small>O resultado abaixo atualiza sozinho ao mudar qualquer campo.</small></p></form>
+<div class="card scroll"><h3>Resultado (atualiza sozinho)</h3><div id="calcpanel"><small>preencha os campos…</small></div></div>
+<script>
+const cf = document.querySelector('form[action="/calculadora"]'), painel = document.getElementById('calcpanel');
+let tc; async function recalc() {
+  const body = new URLSearchParams(); for (const [k, v] of new FormData(cf)) if (typeof v === 'string') body.append(k, v);
+  painel.innerHTML = await (await fetch('/produtos/calcular', {method: 'POST', body})).text();
+}
+const agenda = () => { clearTimeout(tc); tc = setTimeout(recalc, 300); };
+cf.addEventListener('input', agenda); cf.addEventListener('change', agenda);
+new MutationObserver(agenda).observe(cf, {childList: true, subtree: true}); recalc();
+</script>
+{% if r %}<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px">
+<div class="card"><h3>Preço sugerido por unidade, por canal</h3><table>{% for cn,pr in por_canal %}<tr><td>{{cn.nome}} ({{cn.taxa_pct|dec}}%{% if cn.taxa_fixa %} + {{cn.taxa_fixa|brl}}{% endif %})</td><td class="r">{{pr|brl if pr else '—'}}</td></tr>{% endfor %}</table>
 {% if r.preco %}<hr><h3>Salvar como produto</h3><form method="post" action="/calculadora/salvar">
-{% for k in ["projeto_id","impressora_id","horas","embalagem","acessorios","min_trabalho","margem_pct"] %}<input type="hidden" name="{{k}}" value="{{f.get(k,'')}}">{% endfor %}
+{% for k in ["projeto_id","impressora_id","horas","embalagem","acessorios","min_trabalho","margem_pct","lote_qtd"] %}<input type="hidden" name="{{k}}" value="{{f.get(k,'')}}">{% endfor %}
 {% for l in fils %}<input type="hidden" name="mat_id" value="{{l.material_id}}"><input type="hidden" name="mat_g" value="{{l.g}}"><input type="hidden" name="mat_preco" value="{{l.preco}}"><input type="hidden" name="mat_pesorolo" value="{{l.peso_rolo}}">{% endfor %}
+{% for i in ins %}<input type="hidden" name="ins_id" value="{{i.insumo_id}}"><input type="hidden" name="ins_q" value="{{i.q}}">{% endfor %}
 {% for o in outros %}<input type="hidden" name="out_desc" value="{{o.desc}}"><input type="hidden" name="out_valor" value="{{o.valor}}">{% endfor %}
 <input type="hidden" name="preco" value="{{r.preco}}">{{campo("nome","Nome do produto","","text","required")}}{{campo("sku","SKU (opcional)")}}
-{% if fils|selectattr("material_id","equalto","")|list %}<small>Filamentos informados manualmente não são vinculados ao produto (só os do estoque).</small>{% endif %}<p><button>Salvar produto</button></p></form>{% endif %}</div></div>{% endif %}{% endblock %}
+{% if fils|selectattr("material_id","equalto","")|list %}<small>Filamentos informados manualmente não são vinculados ao produto (só os do estoque).</small>{% endif %}<p><small>Salva só o cadastro. Para dar entrada das peças produzidas, use Estoque → Produtos prontos.</small></p>
+<p><button>Salvar produto</button></p></form>{% endif %}</div></div>{% endif %}{% endblock %}

@@ -87,6 +87,7 @@ class Rolo(SQLModel, table=True):
     material_id: int = Field(foreign_key="material.id")
     peso_inicial: Decimal = num("1000")
     preco: Decimal = num("100")
+    fornecedor: str = ""
     comprado_em: date = Field(default_factory=date.today)
     ativo: bool = True
     material: Optional[Material] = Relationship()
@@ -102,6 +103,7 @@ class Insumo(SQLModel, table=True):
     unidade: str = "un"
     custo_unit: Decimal = num("0", 4)
     minimo: Decimal = num("0")
+    fornecedor: str = ""
     ativo: bool = True
 
 
@@ -146,7 +148,10 @@ class Produto(SQLModel, table=True):
     tempo_min: int = 0
     impressora_id: Optional[int] = Field(default=None, foreign_key="impressora.id")
     preco: Decimal = num("0")
+    preco_manual: bool = False  # False: o preço acompanha o sugerido (custo + margem) enquanto se edita
     margem_pct: Decimal = num("40")
+    lote_qtd: int = 1  # quantas unidades saem de UMA produção; tempo, gramas, insumos e custos do produto são do lote
+    fornecedor: str = ""
     minimo: Decimal = num("0")  # estoque pronto mínimo
     embalagem: Decimal = num("0")
     acessorios: Decimal = num("0")
@@ -262,6 +267,7 @@ class PedidoItem(SQLModel, table=True):
     qtd: int = 1
     preco_unit: Decimal = num("0")
     custo_unit: Decimal = num("0")  # congelado na criação
+    qtd_pronta: int = 0  # unidades atendidas com produto JÁ PRONTO em estoque (não imprime; a entrega baixa o produto pronto)
     pedido: Optional[Pedido] = Relationship(back_populates="itens")
 
     @property
