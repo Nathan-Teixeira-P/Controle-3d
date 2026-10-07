@@ -1,0 +1,36 @@
+<!doctype html><html lang="pt-br"><head><meta charset="utf-8"><title>Orçamento {{"%04d"|format(o.id)}}</title>
+<style>
+@page{size:A4;margin:14mm}
+body{font:12px "DejaVu Sans",sans-serif;color:#222;margin:0}
+.wrap{max-width:780px;margin:0 auto;padding:{{ '0' if pdf else '20px' }}}
+header{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #7b1a8c;padding-bottom:10px}
+header img{height:70px}.num{text-align:right}.num h1{margin:0;color:#7b1a8c;font-size:20px}
+h3{color:#7b1a8c;margin:18px 0 6px;font-size:13px;text-transform:uppercase}
+table{width:100%;border-collapse:collapse}th{background:#7b1a8c;color:#fff;text-align:left}th,td{padding:6px;border-bottom:1px solid #ddd}
+.r{text-align:right}.tot{width:260px;margin-left:auto}.tot td{border:0;padding:3px 6px}.big td{font-weight:bold;font-size:14px;border-top:2px solid #7b1a8c}
+.ass{display:flex;gap:40px;margin-top:50px}.ass div{flex:1;border-top:1px solid #222;text-align:center;padding-top:4px}
+footer{margin-top:24px;border-top:1px solid #ddd;padding-top:8px;text-align:center;color:#555}
+.bar{background:#222;padding:10px;text-align:center}.bar a{color:#fff;margin:0 12px}
+@media print{.bar{display:none}}
+</style></head><body>
+<div class="wrap">
+<header><img src="{{logo}}"><div class="num"><h1>ORÇAMENTO Nº {{"%04d"|format(o.id)}}</h1>
+Emissão: {{o.data.strftime("%d/%m/%Y")}}<br>Válido até: <b>{{o.valido_ate.strftime("%d/%m/%Y")}}</b></div></header>
+<h3>Cliente</h3>
+<b>{{o.cliente.nome}}</b>{% if o.cliente.documento %} · {{o.cliente.documento}}{% endif %}<br>
+{{o.cliente.telefone}}{% if o.cliente.email %} · {{o.cliente.email}}{% endif %}{% if o.cliente.endereco %}<br>{{o.cliente.endereco}}{% endif %}
+<h3>Itens</h3>
+<table><tr><th>#</th><th>Descrição</th><th>Personalização</th><th class="r">Qtd</th><th class="r">Unitário</th><th class="r">Total</th></tr>
+{% for i in o.itens %}<tr><td>{{loop.index}}</td><td>{{i.descricao}}</td><td>{{i.personalizacao}}</td><td class="r">{{i.qtd}}</td><td class="r">{{brl(i.preco_unit)}}</td><td class="r">{{brl(i.total)}}</td></tr>{% endfor %}</table>
+<table class="tot"><tr><td>Subtotal</td><td class="r">{{brl(o.subtotal)}}</td></tr>
+{% if o.desconto %}<tr><td>Desconto</td><td class="r">- {{brl(o.desconto)}}</td></tr>{% endif %}
+<tr><td>Frete</td><td class="r">{{brl(o.frete)}}</td></tr>
+<tr class="big"><td>TOTAL</td><td class="r">{{brl(o.total)}}</td></tr></table>
+<h3>Condições</h3>
+<b>Prazo de produção:</b> {{o.prazo}}<br><b>Pagamento:</b> {{o.pagamento}}<br>
+<b>Validade da proposta:</b> {{o.validade_dias}} dias<br>
+{% if o.observacoes %}<b>Observações:</b> {{o.observacoes}}<br>{% endif %}
+<small>Peças impressas em 3D podem ter pequenas variações de cor e acabamento próprias do processo. Itens personalizados não são passíveis de troca.</small>
+<div class="ass"><div>{{empresa.nome}}</div><div>{{o.cliente.nome}} (aceite)</div></div>
+<footer><b>{{empresa.nome}}</b>{% if cfg.cnpj %} · CNPJ {{cfg.cnpj}}{% endif %}{% if cfg.endereco %} · {{cfg.endereco}}{% endif %}<br>Instagram {{empresa.instagram}} · WhatsApp {{empresa.whatsapp}}{% if cfg.pix %}<br>Chave PIX: <b>{{cfg.pix}}</b>{% endif %}</footer>
+</div></body></html>

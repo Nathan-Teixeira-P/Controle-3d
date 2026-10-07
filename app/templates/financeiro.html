@@ -1,0 +1,23 @@
+{% extends "base.html" %}{% from "_m.html" import campo, num %}{% block body %}
+<h1>Financeiro <small style="font-weight:400">{{ini.strftime("%m/%Y")}}</small></h1>
+<p><a class="btn sec" href="?mes={{ant.strftime('%Y-%m')}}">◀</a> <a class="btn sec" href="?mes={{prox.strftime('%Y-%m')}}">▶</a></p>
+<div class="grid"><div class="card kpi"><small>Receitas recebidas</small><h2 class="ok">{{rec_pago|brl}}</h2><small>a receber: {{rec_aberto|brl}}</small></div>
+<div class="card kpi"><small>Despesas pagas</small><h2 class="bad">{{desp_pago|brl}}</h2><small>a pagar: {{desp_aberto|brl}}</small></div>
+<div class="card kpi"><small>Saldo (caixa)</small><h2>{{(rec_pago - desp_pago)|brl}}</h2></div>
+<div class="card kpi"><small>Despesas do mês</small><div>Fixas: <b>{{fixas|brl}}</b></div><div>Variáveis: <b>{{variaveis|brl}}</b></div></div></div>
+<div class="card"><h3>Fluxo de caixa — 6 meses</h3><div style="display:flex;gap:14px;align-items:end;height:140px">{% for m in meses %}<div style="flex:1;text-align:center"><div style="display:flex;gap:3px;align-items:end;height:110px;justify-content:center">
+<div title="Receita {{m.receita|brl}}" style="width:40%;background:#2e9e5b;height:{{(m.receita / topo * 100)|round|int}}%"></div><div title="Despesa {{m.despesa|brl}}" style="width:40%;background:#c62828;height:{{(m.despesa / topo * 100)|round|int}}%"></div></div><small>{{m.mes.strftime("%m/%y")}}</small></div>{% endfor %}</div><small><span class="ok">■</span> receitas <span class="bad">■</span> despesas</small></div>
+<details class="card"><summary><b>+ Novo lançamento</b></summary><form method="post" action="/lancamentos"><div class="grid">
+<div><label>Tipo</label><select name="tipo"><option value="despesa">Despesa</option><option value="receita">Receita</option></select></div>
+<div><label>Categoria</label><input name="categoria" list="cats"><datalist id="cats">{% for c in cats %}<option>{{c}}</option>{% endfor %}</datalist></div>
+<div><label>Natureza</label><select name="natureza"><option value="variavel">Variável</option><option value="fixa">Fixa</option></select></div>
+{{campo("descricao","Descrição")}}{{num("valor","Valor (R$)","")}}{{campo("vencimento","Vencimento",hoje,"date")}}
+<div><label>Recorrência</label><select name="recorrencia"><option value="">Única</option><option value="mensal">Mensal</option></select></div>
+<div><label>Já pago?</label><select name="pago"><option value="0">Não</option><option value="1">Sim</option></select></div></div><p><button>Lançar</button></p></form></details>
+{% if abertos %}<div class="card"><h3>A pagar / receber (em aberto)</h3><table>{% for l in abertos %}<tr><td class="{{'bad' if l.vencimento < hoje}}">{{l.vencimento.strftime("%d/%m/%Y")}}</td><td>{{l.descricao}} <small>{{l.categoria}}</small></td><td>{{l.tipo}}</td><td class="r">{{l.valor|brl}}</td>
+<td><form method="post" action="/lancamentos/{{l.id}}/pagar"><button>{{ 'Pagar' if l.tipo=='despesa' else 'Receber' }}</button></form></td></tr>{% endfor %}</table></div>{% endif %}
+<div class="wrap"><table><tr><th>Venc.</th><th>Descrição</th><th>Categoria</th><th>Natureza</th><th class="r">Valor</th><th>Situação</th><th></th></tr>
+{% for l in ls %}<tr><td>{{l.vencimento.strftime("%d/%m")}}</td><td>{{l.descricao}}{% if l.recorrencia %} ↻{% endif %}</td><td>{{l.categoria}}</td><td>{{l.natureza}}</td>
+<td class="r {{'ok' if l.tipo=='receita' else 'bad'}}">{{ '+' if l.tipo=='receita' else '−' }}{{l.valor|brl}}</td><td>{{ 'pago ' ~ l.pago_em.strftime("%d/%m") if l.pago_em else 'em aberto' }}</td>
+<td style="white-space:nowrap">{% if l.pago_em and not l.venda_id %}<form method="post" action="/lancamentos/{{l.id}}/desfazer" style="display:inline"><button class="lnk">desfazer</button></form>{% endif %}
+{% if not l.venda_id %}<form method="post" action="/lancamentos/{{l.id}}/cancelar" style="display:inline" onsubmit="return confirm('Cancelar lançamento?')"><button class="lnk bad">cancelar</button></form>{% endif %}</td></tr>{% endfor %}</table></div>{% endblock %}

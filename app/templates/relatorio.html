@@ -1,0 +1,7 @@
+{% extends "base.html" %}{% block body %}
+<h1>Relatório: {{titulo}}</h1>
+<form class="card" style="display:flex;gap:8px;flex-wrap:wrap;align-items:end"><div><label>De</label><input type="date" name="ini" value="{{ini}}"></div><div><label>Até</label><input type="date" name="fim" value="{{fim}}"></div>
+{% if nome == 'lucratividade' %}<div><label>Agrupar por</label><select name="por"><option value="produto">Produto</option><option value="canal" {{'selected' if por=='canal'}}>Canal</option></select></div>{% endif %}
+<button>Aplicar</button>
+<a class="btn sec" href="?ini={{ini}}&fim={{fim}}&por={{por}}&fmt=csv">⬇ CSV</a><a class="btn sec" href="?ini={{ini}}&fim={{fim}}&por={{por}}&fmt=xlsx">⬇ Excel</a></form>
+<div class="wrap"><table><tr>{% for c in cab %}<th>{{c}}</th>{% endfor %}</tr>{% for r in rows %}<tr>{% for c in r %}<td>{{c}}</td>{% endfor %}</tr>{% else %}<tr><td colspan="{{cab|length}}">Sem dados no período.</td></tr>{% endfor %}</table></div>{% endblock %}

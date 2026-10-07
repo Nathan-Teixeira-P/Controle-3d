@@ -1,0 +1,9 @@
+{% extends "base.html" %}{% from "_m.html" import campo, pager %}{% block body %}
+<h1>Clientes</h1>
+<form class="card" style="display:flex;gap:8px"><input name="q" value="{{q}}" placeholder="Buscar nome, telefone, e-mail"><button>Buscar</button></form>
+<details class="card"><summary><b>+ Novo cliente</b></summary><form method="post" action="/clientes"><div class="grid">
+{{campo("nome","Nome","","text","required")}}{{campo("telefone","Telefone/WhatsApp")}}{{campo("email","E-mail","","email")}}{{campo("documento","CPF/CNPJ")}}{{campo("endereco","Endereço")}}{{campo("observacoes","Observações")}}
+</div><p><button>Adicionar</button></p></form></details>
+<div class="wrap"><table><tr><th>Nome</th><th>Telefone</th><th>E-mail</th></tr>
+{% for c in pg.items %}<tr><td><a href="/clientes/{{c.id}}">{{c.nome}}</a></td><td>{{c.telefone}}</td><td>{{c.email}}</td></tr>{% endfor %}</table></div>
+{{ pager(pg, "q=" ~ q ~ "&") }}{% endblock %}

@@ -1,0 +1,30 @@
+{% extends "base.html" %}{% from "_m.html" import campo, num, opts %}{% block body %}
+<h1>{{ p.nome if p else "Novo produto" }}</h1>
+<form method="post" action="/produtos" enctype="multipart/form-data" class="card">
+{% if p %}<input type="hidden" name="id" value="{{p.id}}">{% endif %}
+<div class="grid">{{campo("nome","Nome",p.nome if p else (pre.nome if pre else ""),"text","required")}}{{campo("sku","SKU (vazio = automático)",p.sku if p)}}
+<div><label>Categoria</label><input name="categoria" list="cats" value="{{p.categoria if p}}"><datalist id="cats">{% for c in cats %}<option>{{c}}</option>{% endfor %}</datalist></div>
+<div><label>Impressora</label><select name="impressora_id">{{ opts(imps, p.impressora_id if p else none, "— nenhuma —") }}</select></div>
+{{num("tempo_min","Tempo médio de fabricação (min)",p.tempo_min if p else (pre.tempo_min if pre else 0))}}{{num("min_trabalho","Mão de obra (min)",p.min_trabalho if p else 0)}}
+{{num("embalagem","Embalagem (R$)",p.embalagem if p else 0)}}{{num("acessorios","Acessórios (R$)",p.acessorios if p else 0)}}
+{{num("preco","Preço de venda (R$)",p.preco if p else 0)}}{{num("margem_pct","Margem alvo (%)",p.margem_pct if p else 40)}}{{num("minimo","Estoque pronto mínimo",p.minimo if p else 0)}}
+<div><label>Foto</label><input type="file" name="foto" accept="image/*"></div>
+<div><label>Projeto (arquivo do modelo)</label><select name="projeto_id"><option value="">— nenhum —</option>{% for j in projetos %}<option value="{{j.id}}" {{'selected' if (p and p.projeto_id == j.id) or (pre and pre.id == j.id)}}>{{j.nome}}</option>{% endfor %}</select></div>
+{{campo("modelo_link","Link/observação do modelo (opcional)",p.modelo if p else "")}}</div>
+{% if pre and (pre.peso_g or pre.tempo_min) %}<p><small>Do projeto: {{pre.peso_g|dec(0)}} g e {{pre.tempo_min}} min — informe o filamento e as gramas abaixo.</small></p>{% endif %}
+{% if p and p.foto %}<img src="{{p.foto}}" style="max-height:120px;border-radius:8px;margin-top:8px">{% endif %}
+{% if p and p.projeto %}<p>Projeto: <a href="/projetos/{{p.projeto.id}}">{{p.projeto.nome}}</a> · <a href="/projetos/{{p.projeto.id}}/baixar">⬇ baixar arquivo</a></p>{% endif %}
+<h3>Filamentos usados (por unidade)</h3><div id="mats">{% for pm in (p.materiais if p else []) %}<div class="row grid"><div><select name="mat_id">{{ opts(materiais, pm.material_id) }}</select></div>{{num("mat_g","Gramas",pm.gramas)}}<div style="align-self:end"><button type="button" class="sec" onclick="rm(this)">✕</button></div></div>{% endfor %}</div>
+<button type="button" class="sec" onclick="addRow('tm','mats')">+ Filamento</button>
+<h3>Insumos usados (por unidade)</h3><div id="inss">{% for pi in (p.insumos if p else []) %}<div class="row grid"><div><select name="ins_id">{{ opts(insumos, pi.insumo_id) }}</select></div>{{num("ins_q","Qtd",pi.qtd)}}<div style="align-self:end"><button type="button" class="sec" onclick="rm(this)">✕</button></div></div>{% endfor %}</div>
+<button type="button" class="sec" onclick="addRow('ti','inss')">+ Insumo</button>
+<template id="tm"><div class="row grid"><div><select name="mat_id">{{ opts(materiais) }}</select></div>{{num("mat_g","Gramas","")}}<div style="align-self:end"><button type="button" class="sec" onclick="rm(this)">✕</button></div></div></template>
+<template id="ti"><div class="row grid"><div><select name="ins_id">{{ opts(insumos) }}</select></div>{{num("ins_q","Qtd",1)}}<div style="align-self:end"><button type="button" class="sec" onclick="rm(this)">✕</button></div></div></template>
+<p><button>Salvar produto</button></p></form>
+{% if p %}<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px">
+<div class="card"><h3>Custo calculado</h3><table>{% for k,l in [("filamento","Filamento"),("energia","Energia"),("deprec","Depreciação/manutenção"),("mao","Mão de obra"),("rateio","Rateio de custos fixos"),("embalagem","Embalagem"),("acessorios","Acessórios + insumos"),("falhas","Perdas/falhas"),("custo","<b>Custo</b>")] %}<tr><td>{{l|safe}}</td><td class="r">{{calc[k]|brl}}</td></tr>{% endfor %}
+<tr><td>Preço de venda</td><td class="r">{{p.preco|brl}}</td></tr>
+<tr><td>Margem real</td><td class="r {{ 'bad' if p.preco and (p.preco - calc.custo) / p.preco * 100 < p.margem_pct }}">{{ ((p.preco - calc.custo) / p.preco * 100 if p.preco else 0)|dec(1) }}% (alvo {{p.margem_pct|dec(0)}}%)</td></tr>
+<tr><td>Estoque pronto</td><td class="r">{{estoque|dec(0)}}</td></tr></table></div>
+<div class="card"><h3>Preço sugerido por canal (margem alvo)</h3><table>{% for cn,pr in por_canal %}<tr><td>{{cn.nome}}</td><td class="r">{{pr|brl if pr else '—'}}</td></tr>{% endfor %}</table>
+<form method="post" action="/produtos/{{p.id}}/arquivar" onsubmit="return confirm('Arquivar produto?')"><button class="sec">Arquivar produto</button></form></div></div>{% endif %}{% endblock %}

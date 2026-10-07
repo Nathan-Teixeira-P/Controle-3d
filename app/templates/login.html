@@ -1,0 +1,7 @@
+<!doctype html><html lang="pt-br"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Entrar</title>
+<style>body{font:15px system-ui;background:#f6f4f8;display:grid;place-items:center;min-height:100vh;margin:0}form{background:#fff;padding:28px;border-radius:10px;width:min(340px,92vw);box-shadow:0 2px 8px #0002}
+img{width:100%}input{width:100%;padding:9px;margin:6px 0 12px;border:1px solid #ccc;border-radius:6px;font:inherit}button{width:100%;background:#7b1a8c;color:#fff;border:0;padding:10px;border-radius:6px;font:inherit;cursor:pointer}.e{color:#c62828}</style></head>
+<body><form method="post" action="{{ '/setup' if setup else '/login' }}"><img src="/static/logo.png">
+<h3>{{ 'Primeiro acesso: crie o usuário' if setup else 'Entrar' }}</h3>{% if erro %}<p class="e">{{erro}}</p>{% endif %}
+<label>Usuário</label><input name="nome" required autofocus><label>Senha</label><input name="senha" type="password" required>
+<button>{{ 'Criar e entrar' if setup else 'Entrar' }}</button></form></body></html>

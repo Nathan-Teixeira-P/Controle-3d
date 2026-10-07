@@ -1,0 +1,9 @@
+{% extends "base.html" %}{% from "_m.html" import campo, opts, linha_item %}{% block body %}
+<h1>Venda avulsa</h1><p><small>Produtos do catálogo baixam do estoque pronto.</small></p>
+<form method="post" action="/vendas"><div class="card"><div class="grid">
+<div><label>Cliente</label><select name="cliente_id">{{ opts(clientes, none, "Balcão (sem cadastro)") }}</select></div>
+<div><label>Canal</label><select name="canal_id">{{ opts(canais, none, "—") }}</select></div>
+<div><label>Pagamento</label><select name="forma_pagamento"><option>PIX</option><option>Dinheiro</option><option>Cartão de crédito</option><option>Cartão de débito</option><option>Transferência</option><option>Marketplace</option></select></div>
+{{campo("data","Data",hoje,"date")}}</div></div>
+<div class="card"><h3>Itens</h3><div id="itens"></div><button type="button" class="sec" onclick="addRow('t','itens')">+ Item</button></div>
+<template id="t">{{ linha_item(produtos, none, false) }}</template><button>Registrar venda</button></form><script>addRow('t','itens')</script>{% endblock %}

@@ -1,0 +1,16 @@
+{% extends "base.html" %}{% block body %}
+<div class="card" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+<a class="btn sec" href="/orcamentos">← Voltar</a><span class="tag {{o.status_exib}}">{{o.status_exib}}</span>
+<a class="btn" href="/orcamentos/{{o.id}}/pdf" target="_blank">Abrir PDF</a><a class="btn" href="/orcamentos/{{o.id}}/pdf?download=1">⬇ Baixar PDF</a>
+<a class="btn" href="{{wa}}" target="_blank">WhatsApp</a>
+<button class="sec" onclick="fetch('/ia/mensagem/{{o.id}}',{method:'POST'}).then(r=>r.text()).then(t=>{ia.value=t;ia.style.display='block'});this.textContent='Gerando…'">Mensagem com IA</button>
+{% if o.status != 'aprovado' %}<a class="btn sec" href="/orcamentos/{{o.id}}/editar">Editar</a>{% endif %}
+<form method="post" action="/orcamentos/{{o.id}}/duplicar"><button class="sec">Duplicar</button></form>
+{% if o.status == 'aberto' %}<form method="post" action="/orcamentos/{{o.id}}/status"><input type="hidden" name="status" value="recusado"><button class="sec">Marcar recusado</button></form>
+{% elif o.status == 'recusado' %}<form method="post" action="/orcamentos/{{o.id}}/status"><input type="hidden" name="status" value="aberto"><button class="sec">Reabrir</button></form>{% endif %}
+{% if o.status != 'aprovado' %}<form method="post" action="/orcamentos/{{o.id}}/excluir" onsubmit="return confirm('Excluir orçamento?')"><button class="bad">Excluir</button></form>{% endif %}
+</div>
+{% if o.status == 'aberto' %}<form method="post" action="/orcamentos/{{o.id}}/aprovar" class="card" style="display:flex;gap:8px;align-items:end"><div><label>Prazo de entrega</label><input type="date" name="prazo" value="{{prazo}}"></div><button>✔ Aprovar → gerar pedido</button></form>{% endif %}
+<textarea id="ia" rows="4" style="display:none;margin-bottom:12px"></textarea>
+<div class="card" style="padding:0;overflow:hidden"><iframe src="/orcamentos/{{o.id}}/doc" style="width:100%;height:1000px;border:0" title="Orçamento"></iframe></div>
+{% endblock %}

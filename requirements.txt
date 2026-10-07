@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+jinja2
+python-multipart
+sqlmodel
+psycopg[binary]
+alembic
+itsdangerous
+weasyprint
+httpx
+openpyxl
+pillow
+pytest

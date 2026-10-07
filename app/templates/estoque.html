@@ -1,0 +1,35 @@
+{% extends "base.html" %}{% from "_m.html" import campo, num, opts %}{% block body %}
+<h1>Estoque</h1>{% if msg %}<div class="msg">{{msg}}</div>{% endif %}
+<div class="tabs">{% for k,l in [("alertas","Alertas (" ~ baixo|length ~ ")"),("filamentos","Filamentos"),("insumos","Insumos"),("produtos","Produtos prontos"),("movimentos","Movimentos")] %}<a href="?aba={{k}}" class="{{'on' if aba==k}}">{{l}}</a>{% endfor %}</div>
+{% if aba == "alertas" %}
+<div class="card"><p><small><span class="tag acabando">acabando</span> = no mínimo definido ou abaixo · <span class="tag acabou">acabou</span> = zerado. Defina o mínimo em: filamento (na compra), insumo (cadastro) e produto (ficha do produto).</small></p>
+<table><tr><th>Situação</th><th>Tipo</th><th>Item</th><th class="r">Saldo</th><th class="r">Mínimo</th><th></th></tr>
+{% for a in baixo %}<tr class="{{ 'row-bad' if a.status == 'acabou' else 'row-warn' }}"><td><span class="tag {{a.status}}">{{a.status}}</span></td><td>{{a.tipo}}</td><td><b>{{a.nome}}</b></td><td class="r">{{a.saldo|dec(0)}}</td><td class="r">{{a.minimo|dec(0)}}</td>
+<td><a href="?aba={{ {'Filamento':'filamentos','Insumo':'insumos','Produto pronto':'produtos'}[a.tipo] }}">repor →</a></td></tr>{% else %}<tr><td colspan="6">✅ Nada acabando.</td></tr>{% endfor %}</table></div>
+{% elif aba == "filamentos" %}
+<div class="wrap"><table><tr><th>Material</th><th class="r">Total em estoque</th><th class="r">Mínimo</th><th>Situação</th></tr>
+{% for m, tot, stt in mats %}<tr class="{{ 'row-bad' if stt == 'acabou' else 'row-warn' if stt == 'acabando' }}"><td>{{m.nome}}</td><td class="r">{{tot|dec(0)}} g</td><td class="r">{{m.minimo_g|dec(0)}} g</td><td>{% if stt %}<span class="tag {{stt}}">{{stt}}</span>{% else %}ok{% endif %}</td></tr>{% endfor %}</table></div><br>
+<details class="card" open><summary><b>+ Registrar compra de filamento</b></summary><form method="post" action="/estoque/compra"><div class="grid">
+<div><label>Material</label><input name="tipo" list="tipos" required placeholder="PLA, PETG…"><datalist id="tipos"><option>PLA<option>PETG<option>ABS<option>ASA<option>TPU<option>PLA SILK</datalist></div>
+{{campo("cor","Cor")}}{{campo("marca","Marca")}}{{num("peso","Peso do rolo (g)",1000)}}{{num("preco","Preço pago (R$)")}}{{num("qtd","Quantos rolos",1)}}{{campo("data","Data","","date")}}{{num("minimo_g","Mínimo em estoque (g) — opcional")}}
+</div><p><button>Registrar</button></p></form></details>
+<form method="post" action="/estoque/importar" enctype="multipart/form-data" class="card"><b>Importar estoque inicial (CSV)</b><br><small>Colunas: <code>tipo;material;cor;marca;peso_g;preco</code> (tipo=filamento) ou <code>tipo;nome;unidade;qtd;custo_unit</code> (tipo=insumo)</small>
+<div style="display:flex;gap:8px"><input type="file" name="arquivo" accept=".csv" required><button>Importar</button></div></form>
+<div class="wrap"><table><tr><th>Rolo</th><th>Material</th><th>Restante</th><th></th><th class="r">Custo/g</th><th class="r">Preço pago</th><th>Pesar</th><th></th></tr>
+{% for r, sl in rolos %}<tr class="{{ 'row-bad' if sl <= 0 }}"><td>#{{r.id}}</td><td>{{r.material.nome}}</td><td>{{sl|dec(0)}} g / {{r.peso_inicial|dec(0)}}</td><td style="width:120px"><div class="bar"><i style="width:{{ [100, (sl / r.peso_inicial * 100) if r.peso_inicial else 0]|min if sl > 0 else 0 }}%"></i></div></td>
+<td class="r">{{r.custo_g|dec(4)}}</td><td class="r">{{r.preco|brl}}</td>
+<td><form method="post" action="/estoque/rolo/{{r.id}}/ajuste" style="display:flex;gap:4px"><input name="restante" type="number" step="any" placeholder="g restantes" style="width:110px"><button class="sec">OK</button></form></td>
+<td><form method="post" action="/estoque/rolo/{{r.id}}/arquivar"><button class="lnk" title="Arquivar (acabou)">arquivar</button></form></td></tr>{% endfor %}</table></div>
+{% elif aba == "insumos" %}
+<details class="card" open><summary><b>+ Novo insumo</b></summary><form method="post" action="/estoque/insumo"><div class="grid">{{campo("nome","Nome","","text","required")}}{{campo("unidade","Unidade","un")}}{{num("custo_unit","Custo unitário (R$)")}}{{num("minimo","Mínimo")}}{{num("qtd","Quantidade inicial")}}</div><p><button>Criar</button></p></form></details>
+<div class="card"><b>Entrada / ajuste</b><form method="post" action="/estoque/mov"><input type="hidden" name="tipo" value="insumo"><div class="grid">
+<div><label>Insumo</label><select name="item_id">{% for i,sl in insumos %}<option value="{{i.id}}">{{i.nome}}</option>{% endfor %}</select></div>{{num("delta","Quantidade (+ entrada, − saída)")}}
+<div><label>Motivo</label><select name="motivo"><option>compra</option><option>ajuste</option><option>perda</option></select></div></div><p><button>Registrar</button></p></form></div>
+<div class="wrap"><table><tr><th>Insumo</th><th class="r">Saldo</th><th class="r">Mínimo</th><th class="r">Custo unit.</th></tr>{% for i,sl in insumos %}{% set stt = st.get(("insumo", i.id), "") %}<tr class="{{ 'row-bad' if stt == 'acabou' else 'row-warn' if stt == 'acabando' }}"><td>{{i.nome}} {% if stt %}<span class="tag {{stt}}">{{stt}}</span>{% endif %}</td><td class="r">{{sl|dec(0)}} {{i.unidade}}</td><td class="r">{{i.minimo|dec(0)}}</td><td class="r">{{i.custo_unit|dec(4)}}</td></tr>{% endfor %}</table></div>
+{% elif aba == "produtos" %}
+<div class="card"><b>Ajuste de produto pronto</b> <small>(reposição normal: crie um pedido do tipo "estoque" em Pedidos)</small><form method="post" action="/estoque/mov"><input type="hidden" name="tipo" value="produto"><div class="grid">
+<div><label>Produto</label><select name="item_id">{% for p,sl in produtos %}<option value="{{p.id}}">{{p.nome}}</option>{% endfor %}</select></div>{{num("delta","Quantidade (+/−)")}}{{campo("obs","Observação")}}<input type="hidden" name="motivo" value="ajuste"></div><p><button>Registrar</button></p></form></div>
+<div class="wrap"><table><tr><th>Produto</th><th class="r">Em estoque</th><th class="r">Mínimo</th></tr>{% for p,sl in produtos %}{% set stt = st.get(("produto", p.id), "") %}<tr class="{{ 'row-bad' if stt == 'acabou' else 'row-warn' if stt == 'acabando' }}"><td><a href="/produtos/{{p.id}}">{{p.nome}}</a> {% if stt %}<span class="tag {{stt}}">{{stt}}</span>{% endif %}</td><td class="r">{{sl|dec(0)}}</td><td class="r">{{p.minimo|dec(0)}}</td></tr>{% endfor %}</table></div>
+{% else %}
+<div class="wrap"><table><tr><th>Quando</th><th>Item</th><th class="r">Δ</th><th>Motivo</th><th>Ref.</th><th>Obs.</th></tr>{% for m in movs %}<tr><td>{{m.em.strftime("%d/%m %H:%M")}}</td><td>{{nomes.get((m.item_tipo, m.item_id), m.item_tipo ~ ' #' ~ m.item_id)}}</td><td class="r {{'bad' if m.delta < 0 else 'ok'}}">{{m.delta|dec}}</td><td>{{m.motivo}}</td><td>{{m.ref_tipo}} {{m.ref_id or ''}}</td><td>{{m.obs}}</td></tr>{% endfor %}</table></div>
+{% endif %}{% endblock %}

@@ -1,0 +1,2 @@
+{% extends "base.html" %}{% block body %}<h1>Relatórios</h1>
+<div class="grid">{% for k,n in nomes.items() %}<a class="card" href="/relatorios/{{k}}" style="text-decoration:none;color:inherit"><h3>{{n}}</h3></a>{% endfor %}</div>{% endblock %}

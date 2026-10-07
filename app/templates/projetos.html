@@ -1,0 +1,12 @@
+{% extends "base.html" %}{% from "_m.html" import pager %}{% block body %}
+<h1>Projetos</h1>{% if msg %}<div class="msg">{{msg}}</div>{% endif %}
+<form method="post" action="/projetos" enctype="multipart/form-data" class="card"><b>Enviar arquivos</b> <small>STL, 3MF, OBJ, STEP, G-code, ZIP — vários de uma vez. 3MF já fatiado (Bambu Studio) preenche peso e tempo sozinho.</small>
+<div class="grid"><div><label>Arquivos</label><input type="file" name="arquivos" multiple required></div><div><label>Categoria (opcional)</label><input name="categoria" list="cats"><datalist id="cats">{% for c in cats %}<option>{{c}}</option>{% endfor %}</datalist></div>
+<div style="align-self:end"><button>Enviar</button></div></div></form>
+<form class="card" style="display:flex;gap:8px"><input name="q" value="{{q}}" placeholder="Buscar projeto"><select name="categoria" style="width:200px"><option value="">Todas as categorias</option>{% for c in cats %}<option {{'selected' if c == categoria}}>{{c}}</option>{% endfor %}</select><button>Filtrar</button></form>
+<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px">
+{% for p in pg.items %}<a class="card" href="/projetos/{{p.id}}" style="text-decoration:none;color:inherit;margin:0">
+{% if p.foto %}<img src="{{p.foto}}" style="width:100%;height:130px;object-fit:cover;border-radius:6px">{% else %}<div style="height:130px;background:#eee;border-radius:6px;display:grid;place-items:center;font-size:34px">🧊</div>{% endif %}
+<h4 style="margin:8px 0 2px">{{p.nome}}</h4><small>{{p.arquivo_nome}} · {{(p.tamanho / 1048576)|dec(1)}} MB</small>
+{% if p.peso_g or p.tempo_min %}<br><small>{{p.peso_g|dec(0)}} g · {{(p.tempo_min // 60)}}h{{ '%02d'|format(p.tempo_min % 60) }}</small>{% endif %}</a>{% else %}<p>Nenhum projeto ainda.</p>{% endfor %}</div>
+{{ pager(pg, "q=" ~ q ~ "&categoria=" ~ categoria ~ "&") }}{% endblock %}

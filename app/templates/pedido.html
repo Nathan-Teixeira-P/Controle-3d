@@ -1,0 +1,38 @@
+{% extends "base.html" %}{% block body %}
+<h1>Pedido #{{p.id}} <span class="tag {{p.status}}">{{p.status}}</span>{% if p.tipo == 'estoque' %} <span class="tag">reposição de estoque</span>{% endif %}</h1>
+{% if msg %}<div class="msg">{{msg}}</div>{% endif %}
+<div class="card"><div class="grid">
+<div><small>Cliente</small><br><b>{% if p.cliente %}<a href="/clientes/{{p.cliente.id}}">{{p.cliente.nome}}</a>{% else %}—{% endif %}</b></div>
+<div><small>Canal</small><br><b>{{p.canal.nome if p.canal else '—'}}</b></div>
+<div><small>Prazo</small><br><b class="{{'bad' if p.atrasado}}">{{p.prazo.strftime("%d/%m/%Y") if p.prazo else '—'}}</b></div>
+<div><small>Orçamento</small><br>{% if p.orcamento_id %}<a href="/orcamentos/{{p.orcamento_id}}">#{{"%04d"|format(p.orcamento_id)}}</a>{% else %}—{% endif %}</div>
+<div><small>Total</small><br><b>{{p.total|brl}}</b></div><div><small>Custo (com falhas)</small><br><b>{{custo|brl}}</b></div></div>
+{% if p.do_estoque %}<p><small>Atendido com produto pronto do estoque (baixa na entrega).</small></p>{% endif %}
+{% if p.observacoes %}<p>{{p.observacoes}}</p>{% endif %}</div>
+
+<div class="card"><h3>Itens</h3><table><tr><th>Item</th><th>Personalização</th><th class="r">Qtd</th><th class="r">Preço</th><th class="r">Custo unit.</th></tr>
+{% for i in p.itens %}<tr><td>{{i.descricao}}{% if i.produto_id in arquivos %} <a href="/projetos/{{arquivos[i.produto_id].id}}/baixar" title="{{arquivos[i.produto_id].arquivo_nome}}">📁 arquivo</a>{% endif %}</td><td>{{i.personalizacao}}</td><td class="r">{{i.qtd}}</td><td class="r">{{i.preco_unit|brl}}</td><td class="r">{{i.custo_unit|brl}}</td></tr>{% endfor %}</table></div>
+
+{% set idx = ordem.index(p.status) if p.status in ordem else -1 %}
+{% if p.status == 'cancelado' %}
+<form method="post" action="/pedidos/{{p.id}}/mover"><input type="hidden" name="para" value="aguardando"><button>Reabrir pedido</button></form>
+{% elif request.query_params.get('confirmar') and p.status == 'aguardando' %}
+<form method="post" action="/pedidos/{{p.id}}/mover" class="card"><input type="hidden" name="para" value="imprimindo"><h3>Iniciar impressão — confirme o filamento</h3>
+<p><small>Gramas previstas já preenchidas; ajuste se usou diferente.</small></p>
+{% for pl in plano %}<div class="grid row"><div><label>{{pl.material.nome}}</label><select name="rolo">{% for r, sl in pl.rolos %}<option value="{{r.id}}">Rolo #{{r.id}} — {{sl|dec(0)}} g restantes</option>{% else %}<option value="">(sem rolo em estoque — não baixa)</option>{% endfor %}</select></div>
+<div><label>Gramas</label><input name="gramas" type="number" step="any" value="{{pl.gramas}}"></div></div>{% endfor %}
+<p><button>Começar a imprimir</button> <a class="btn sec" href="/pedidos/{{p.id}}">Cancelar</a></p></form>
+{% else %}
+<div class="card" style="display:flex;gap:8px;flex-wrap:wrap">
+{% if idx > 0 and p.status != 'entregue' %}<form method="post" action="/pedidos/{{p.id}}/mover"><input type="hidden" name="para" value="{{ordem[idx-1]}}"><button class="sec">◀ Voltar para {{ordem[idx-1]}}</button></form>{% endif %}
+{% if idx >= 0 and idx < ordem|length - 1 %}<form method="post" action="/pedidos/{{p.id}}/mover"><input type="hidden" name="para" value="{{ordem[idx+1]}}"><button>Avançar para {{ordem[idx+1]}} ▶</button></form>{% endif %}
+{% if p.status not in ('entregue','cancelado') and not (p.tipo=='estoque' and p.status=='pronto') %}<form method="post" action="/pedidos/{{p.id}}/mover" onsubmit="return confirm('Cancelar pedido?')"><input type="hidden" name="para" value="cancelado"><button class="bad">Cancelar</button></form>{% endif %}</div>
+{% endif %}
+
+{% if venda %}<div class="card">Venda gerada: <a href="/vendas/{{venda.id}}">#{{venda.id}}</a> — lucro {{venda.lucro|brl}}</div>{% endif %}
+{% if p.status in ('imprimindo','acabamento') and rolos %}<form method="post" action="/pedidos/{{p.id}}/falha" class="card"><h3>Registrar falha de impressão</h3><div class="grid">
+<div><label>Rolo</label><select name="rolo">{% for r, sl in rolos %}<option value="{{r.id}}">Rolo #{{r.id}} ({{sl|dec(0)}} g)</option>{% endfor %}</select></div>
+<div><label>Gramas perdidas</label><input name="gramas" type="number" step="any" required></div><div><label>Obs.</label><input name="obs"></div>
+<div style="align-self:end"><button class="sec">Registrar</button></div></div></form>{% endif %}
+<div class="card"><h3>Histórico</h3>{% for h in p.historico %}<div>{{h.em.strftime("%d/%m %H:%M")}} — {{h.de or '·'}} → <b>{{h.para}}</b></div>{% endfor %}</div>
+{% endblock %}

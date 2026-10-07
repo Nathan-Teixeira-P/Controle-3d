@@ -1,0 +1,7 @@
+{% extends "base.html" %}{% from "_m.html" import pager %}{% block body %}
+<h1>Orçamentos</h1><p><a class="btn" href="/orcamentos/novo">+ Novo orçamento</a></p>
+<form class="card" style="display:flex;gap:8px"><input name="q" value="{{q}}" placeholder="Buscar por cliente"><select name="status" style="width:160px"><option value="">Todos</option>{% for x in ["aberto","aprovado","recusado","expirado"] %}<option {{'selected' if x==status}}>{{x}}</option>{% endfor %}</select><button>Filtrar</button></form>
+<div class="wrap"><table><tr><th>Nº</th><th>Cliente</th><th>Data</th><th class="r">Total</th><th>Status</th><th></th></tr>
+{% for o in pg.items %}<tr><td>{{"%04d"|format(o.id)}}</td><td>{{o.cliente.nome}}</td><td>{{o.data.strftime("%d/%m/%Y")}}</td><td class="r">{{o.total|brl}}</td><td><span class="tag {{o.status_exib}}">{{o.status_exib}}</span></td>
+<td><a href="/orcamentos/{{o.id}}">Abrir</a> · <a href="/orcamentos/{{o.id}}/pdf?download=1">Baixar PDF</a></td></tr>{% endfor %}</table></div>
+{{ pager(pg, "q=" ~ q ~ "&status=" ~ status ~ "&") }}{% endblock %}

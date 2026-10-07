@@ -1,0 +1,10 @@
+{% extends "base.html" %}{% block body %}
+<h1>Pedidos / Produção</h1>
+<p><a class="btn" href="/pedidos/novo">+ Novo pedido</a> <a class="btn sec" href="/pedidos">Todos</a> <a class="btn sec" href="/pedidos?tipo=cliente">Clientes</a> <a class="btn sec" href="/pedidos?tipo=estoque">Reposição de estoque</a></p>
+<div class="kanban">{% for c in colunas %}<div class="col"><h4>{{c}} ({{col[c]|length}})</h4>
+{% for p in col[c] %}<div class="pc {{'late' if p.atrasado}}"><a href="/pedidos/{{p.id}}"><b>#{{p.id}}</b> {{p.cliente.nome if p.cliente else '📦 Estoque'}}</a><br>
+{{p.itens|length}} item(ns) · {{p.total|brl}}{% if p.prazo %}<br><small class="{{'bad' if p.atrasado}}">entrega {{p.prazo.strftime("%d/%m")}}</small>{% endif %}
+{% if c in ordem and not (p.tipo == 'estoque' and c == 'pronto') and c != 'entregue' %}<div style="margin-top:6px">
+{% if ordem.index(c) > 0 and not (c == 'entregue') %}<form method="post" action="/pedidos/{{p.id}}/mover"><input type="hidden" name="para" value="{{ordem[ordem.index(c)-1]}}"><button class="sec">◀</button></form>{% endif %}
+<form method="post" action="/pedidos/{{p.id}}/mover"><input type="hidden" name="para" value="{{ordem[ordem.index(c)+1]}}"><button>▶</button></form></div>{% endif %}</div>{% endfor %}</div>{% endfor %}</div>
+{% endblock %}

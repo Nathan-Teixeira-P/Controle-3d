@@ -1,0 +1,11 @@
+{% extends "base.html" %}{% from "_m.html" import campo, num, opts, linha_item %}{% block body %}
+<h1>Novo pedido</h1><p><small>Pedido direto, sem orçamento. Para pedidos de orçamento, aprove o orçamento.</small></p>
+<form method="post" action="/pedidos"><div class="card"><div class="grid">
+<div><label>Tipo</label><select name="tipo"><option value="cliente">Para cliente</option><option value="estoque">Reposição de estoque (produto pronto)</option></select></div>
+<div><label>Cliente</label><select name="cliente_id">{{ opts(clientes, none, "—") }}</select></div>
+<div><label>Canal</label><select name="canal_id">{{ opts(canais, none, "—") }}</select></div>
+{{campo("prazo","Prazo de entrega","","date")}}{{num("desconto","Desconto (R$)",0)}}{{num("frete","Frete (R$)",0)}}
+<div><label>Atender com produto já pronto?</label><select name="do_estoque"><option value="0">Não, produzir</option><option value="1">Sim, baixar do estoque pronto</option></select></div></div>
+<label>Observações</label><textarea name="observacoes" rows="2"></textarea></div>
+<div class="card"><h3>Itens</h3><div id="itens"></div><button type="button" class="sec" onclick="addRow('t','itens')">+ Item</button></div>
+<template id="t">{{ linha_item(produtos, none, false) }}</template><button>Criar pedido</button></form><script>addRow('t','itens')</script>{% endblock %}

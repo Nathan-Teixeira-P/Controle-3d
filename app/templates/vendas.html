@@ -1,0 +1,7 @@
+{% extends "base.html" %}{% from "_m.html" import pager %}{% block body %}
+<h1>Vendas</h1><p><a class="btn" href="/vendas/nova">+ Venda avulsa (balcão/Shopee)</a></p>
+<form class="card" style="display:flex;gap:8px"><input type="month" name="mes" value="{{mes}}" style="width:200px"><button>Filtrar</button><span style="margin-left:auto">Total da página: <b>{{tot|brl}}</b></span></form>
+<div class="wrap"><table><tr><th>#</th><th>Data</th><th>Cliente</th><th>Canal</th><th>Pagto</th><th class="r">Total</th><th class="r">Custo</th><th class="r">Lucro</th><th></th></tr>
+{% for v in pg.items %}<tr><td><a href="/vendas/{{v.id}}">{{v.id}}</a></td><td>{{v.data.strftime("%d/%m/%Y")}}</td><td>{{v.cliente.nome if v.cliente else 'Balcão'}}</td><td>{{v.canal.nome if v.canal else ''}}</td><td>{{v.forma_pagamento}}</td>
+<td class="r">{{v.total|brl}}</td><td class="r">{{v.custo|brl}}</td><td class="r">{{v.lucro|brl}}</td><td><span class="tag {{v.status}}">{{v.status}}</span></td></tr>{% endfor %}</table></div>
+{{ pager(pg, "mes=" ~ mes ~ "&") }}{% endblock %}

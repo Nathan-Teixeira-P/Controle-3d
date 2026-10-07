@@ -1,0 +1,14 @@
+{% macro campo(nome, label, valor="", tipo="text", extra="") %}<div><label>{{label}}</label><input name="{{nome}}" type="{{tipo}}" value="{{valor if valor is not none}}" {{extra|safe}}></div>{% endmacro %}
+{% macro num(nome, label, valor="") %}{{ campo(nome, label, valor, "number", 'step="any"') }}{% endmacro %}
+{% macro pager(pg, qs="") %}{% if pg.pages > 1 %}<p class="pager">{% for n in range(1, pg.pages + 1) %}<a href="?{{qs}}pagina={{n}}" class="{{ 'on' if n == pg.page }}">{{n}}</a>{% endfor %} <small>{{pg.total}} registros</small></p>{% endif %}{% endmacro %}
+{% macro opts(lista, sel=none, vazio="") %}{% if vazio %}<option value="">{{vazio}}</option>{% endif %}{% for x in lista %}<option value="{{x.id}}" {{ 'selected' if sel == x.id }}>{{x.nome}}</option>{% endfor %}{% endmacro %}
+{% macro linha_item(produtos, it=none, extra_pers=true, extra_custo=false) %}
+<div class="row grid">
+ <div><label>Produto</label><select name="produto_id" onchange="pick(this)"><option value="">— avulso —</option>{% for p in produtos %}<option value="{{p.id}}" data-preco="{{p.preco}}" {{ 'selected' if it and it.produto_id == p.id }}>{{p.nome}} ({{p.sku}})</option>{% endfor %}</select></div>
+ <div><label>Descrição</label><input name="descricao" value="{{it.descricao if it}}"></div>
+ {% if extra_pers %}<div><label>Personalização</label><input name="personalizacao" value="{{it.personalizacao if it}}"></div>{% endif %}
+ <div><label>Qtd</label><input name="qtd" type="number" min="1" value="{{it.qtd if it else 1}}"></div>
+ <div><label>Preço unit. (R$)</label><input name="preco" type="number" step="any" value="{{it.preco_unit if it}}"></div>
+ {% if extra_custo %}<div><label>Custo unit. (avulso)</label><input name="custo" type="number" step="any" value="{{it.custo_unit if it else 0}}"></div>{% endif %}
+ <div style="align-self:end"><button type="button" class="sec" onclick="rm(this)">✕</button></div>
+</div>{% endmacro %}

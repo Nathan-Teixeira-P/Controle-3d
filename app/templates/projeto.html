@@ -1,0 +1,15 @@
+{% extends "base.html" %}{% from "_m.html" import campo, num %}{% block body %}
+<h1>{{p.nome}}</h1>{% if msg %}<div class="msg">{{msg}}</div>{% endif %}
+<p><a class="btn" href="/projetos/{{p.id}}/baixar">⬇ Baixar {{p.arquivo_nome}}</a>
+<a class="btn sec" href="/produtos/novo?projeto_id={{p.id}}">Criar produto com este projeto</a>
+<a class="btn sec" href="/calculadora?projeto_id={{p.id}}">Calcular custo</a></p>
+<form method="post" action="/projetos/{{p.id}}" enctype="multipart/form-data" class="card"><div class="grid">
+{{campo("nome","Nome",p.nome,"text","required")}}
+<div><label>Categoria</label><input name="categoria" list="cats" value="{{p.categoria}}"><datalist id="cats">{% for c in cats %}<option>{{c}}</option>{% endfor %}</datalist></div>
+{{num("peso_g","Peso estimado (g) — do fatiador",p.peso_g)}}{{num("tempo_min","Tempo de impressão (min)",p.tempo_min)}}
+<div><label>Foto/preview</label><input type="file" name="foto" accept="image/*"></div><div><label>Substituir arquivo</label><input type="file" name="arquivo"></div></div>
+<label>Descrição / notas (configurações de impressão, suportes, orientação…)</label><textarea name="descricao" rows="3">{{p.descricao}}</textarea>
+{% if p.foto %}<img src="{{p.foto}}" style="max-height:160px;border-radius:8px;margin-top:8px">{% endif %}
+<p><button>Salvar</button></p></form>
+<div class="card"><h3>Usado em</h3>{% for x in usos %}<div><a href="/produtos/{{x.id}}">{{x.nome}}</a> ({{x.sku}})</div>{% else %}<small>Nenhum produto ainda.</small>{% endfor %}</div>
+<form method="post" action="/projetos/{{p.id}}/arquivar" onsubmit="return confirm('Arquivar projeto?')"><button class="sec">Arquivar projeto</button></form>{% endblock %}

@@ -1,0 +1,7 @@
+{% extends "base.html" %}{% from "_m.html" import pager %}{% block body %}
+<h1>Produtos</h1><p><a class="btn" href="/produtos/novo">+ Novo produto</a></p>
+<form class="card" style="display:flex;gap:8px"><input name="q" value="{{q}}" placeholder="Buscar nome ou SKU"><select name="categoria" style="width:200px"><option value="">Todas as categorias</option>{% for c in cats %}<option {{'selected' if c == categoria}}>{{c}}</option>{% endfor %}</select><button>Filtrar</button></form>
+<div class="wrap"><table><tr><th></th><th>SKU</th><th>Produto</th><th>Categoria</th><th class="r">Custo</th><th class="r">Preço</th><th class="r">Margem</th><th class="r">Pronto</th></tr>
+{% for l in linhas %}{% set p = l.p %}<tr><td>{% if p.foto %}<img class="thumb" src="{{p.foto}}">{% endif %}</td><td>{{p.sku}}</td><td><a href="/produtos/{{p.id}}">{{p.nome}}</a></td><td>{{p.categoria}}</td>
+<td class="r">{{l.custo|brl}}</td><td class="r">{{p.preco|brl}}</td><td class="r {{ 'bad' if l.margem < p.margem_pct }}">{{l.margem|dec(1)}}%</td><td class="r {{ 'bad' if l.st == 'acabou' else 'warn' if l.st == 'acabando' }}">{{l.estoque|dec(0)}} {% if l.st %}<span class="tag {{l.st}}">{{l.st}}</span>{% endif %}</td></tr>{% endfor %}</table></div>
+{{ pager(pg, "q=" ~ q ~ "&categoria=" ~ categoria ~ "&") }}{% endblock %}

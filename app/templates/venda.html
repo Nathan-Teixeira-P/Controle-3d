@@ -1,0 +1,8 @@
+{% extends "base.html" %}{% block body %}
+<h1>Venda #{{v.id}} <span class="tag {{v.status}}">{{v.status}}</span></h1>
+<div class="card"><div class="grid"><div><small>Data</small><br><b>{{v.data.strftime("%d/%m/%Y")}}</b></div><div><small>Cliente</small><br><b>{{v.cliente.nome if v.cliente else 'Balcão'}}</b></div>
+<div><small>Canal</small><br><b>{{v.canal.nome if v.canal else '—'}}</b></div><div><small>Pagamento</small><br><b>{{v.forma_pagamento}}</b></div>
+{% if v.pedido_id %}<div><small>Pedido</small><br><a href="/pedidos/{{v.pedido_id}}">#{{v.pedido_id}}</a></div>{% endif %}</div></div>
+<div class="card"><table><tr><th>Item</th><th class="r">Qtd</th><th class="r">Preço</th><th class="r">Custo unit.</th></tr>{% for i in v.itens %}<tr><td>{{i.descricao}}</td><td class="r">{{i.qtd}}</td><td class="r">{{i.preco_unit|brl}}</td><td class="r">{{i.custo_unit|brl}}</td></tr>{% endfor %}</table>
+<table style="max-width:320px;margin-left:auto"><tr><td>Total</td><td class="r">{{v.total|brl}}</td></tr><tr><td>Custo</td><td class="r">{{v.custo|brl}}</td></tr><tr><td>Taxa do canal</td><td class="r">{{v.taxa|brl}}</td></tr><tr><td><b>Lucro</b></td><td class="r"><b>{{v.lucro|brl}}</b></td></tr></table></div>
+{% if v.status == 'ativa' %}<form method="post" action="/vendas/{{v.id}}/estornar" onsubmit="return confirm('Estornar venda? A receita é cancelada e o estoque devolvido.')"><button class="bad">Estornar venda</button></form>{% endif %}{% endblock %}

@@ -1,0 +1,14 @@
+{% extends "base.html" %}{% from "_m.html" import campo, num, opts, linha_item %}{% block body %}
+<h1>{{ "Editar orçamento " ~ ("%04d"|format(o.id)) if o else "Novo orçamento" }}</h1>
+{% if not clientes %}<p>Cadastre um <a href="/clientes">cliente</a> primeiro.</p>{% else %}
+<form method="post" action="/orcamentos">{% if o %}<input type="hidden" name="id" value="{{o.id}}">{% endif %}
+<div class="card"><div class="grid">
+<div><label>Cliente</label><select name="cliente_id">{{ opts(clientes, o.cliente_id if o else cliente_id) }}</select></div>
+<div><label>Canal (para taxa)</label><select name="canal_id">{{ opts(canais, o.canal_id if o else none, "—") }}</select></div>
+{{num("validade_dias","Validade (dias)",o.validade_dias if o else 7)}}{{num("desconto","Desconto (R$)",o.desconto if o else 0)}}{{num("frete","Frete (R$)",o.frete if o else 0)}}
+{{campo("prazo","Prazo de produção",o.prazo if o else "5 dias úteis após a confirmação")}}{{campo("pagamento","Pagamento",o.pagamento if o else "50% de entrada e 50% na entrega (PIX)")}}</div>
+<label>Observações</label><textarea name="observacoes" rows="2">{{o.observacoes if o}}</textarea></div>
+<div class="card"><h3>Itens</h3><div id="itens">{% if o %}{% for it in o.itens %}{{ linha_item(produtos, it, true, true) }}{% endfor %}{% endif %}</div>
+<button type="button" class="sec" onclick="addRow('t','itens')">+ Item</button></div>
+<template id="t">{{ linha_item(produtos, none, true, true) }}</template>
+<button>Salvar orçamento</button></form>{% if not o %}<script>addRow('t','itens')</script>{% endif %}{% endif %}{% endblock %}
