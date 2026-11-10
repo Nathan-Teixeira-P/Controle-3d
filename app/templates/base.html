@@ -4,5 +4,5 @@
 <nav><img class="logo-claro" src="/static/logo.png" alt="3D Conex Lab"><img class="logo-escuro" src="/static/logo-noturno.png" alt="3D Conex Lab">
 {% for grupo, links in nav %}<h6>{{grupo}}</h6>{% for h, n in links %}<a href="{{h}}">{{n}}{% if h == '/estoque' %}{% set al = alertas() %}{% if al[0] + al[1] %}<span class="badge" style="background:{{ 'var(--bad)' if al[1] else 'var(--warn)' }}">{{al[0] + al[1]}}</span>{% endif %}{% endif %}</a>{% endfor %}{% endfor %}
 <button type="button" id="tema-btn" class="sec tema-btn" onclick="alternarTema()">🌙 Modo noturno</button>
-<form method="post" action="/logout"><button class="sec" style="margin-top:8px;width:100%">Sair</button></form></nav>
+</nav>
 <main>{% set al = alertas() %}{% if al[0] + al[1] %}<a class="alerta {{ 'bad' if al[1] }}" href="/estoque?aba=alertas">⚠ <b>Estoque:</b> {% if al[1] %}<b class="bad">{{al[1]}} acabou</b>{% endif %}{% if al[1] and al[0] %} · {% endif %}{% if al[0] %}<b class="warn">{{al[0]}} acabando</b>{% endif %} — clique para ver</a>{% endif %}{% block body %}{% endblock %}</main><script src="/static/app.js"></script></body></html>

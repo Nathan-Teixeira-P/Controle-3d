@@ -5,7 +5,7 @@ Sistema de gestão (orçamentos, pedidos/produção, estoque de filamento, produ
 ## Instalar no PC da cliente (Windows)
 1. Copie esta pasta para o PC e dê dois cliques em **`instalar.bat`** (aceite o pedido de administrador). Ele instala WSL2 + Docker Desktop, gera o `.env` com senhas aleatórias e sobe o sistema. Se pedir, **reinicie o PC, abra o Docker Desktop, aceite os termos** e rode `instalar.bat` de novo. Requer virtualização ativa na BIOS (Intel VT-x / AMD-V).
 2. Em Docker Desktop *Settings → General*, confirme **Start Docker Desktop when you sign in**. Depois disso o sistema sobe sozinho com o Windows (`restart: unless-stopped`).
-3. Abra **http://localhost:3000**, crie o usuário e a senha (primeiro acesso).
+3. Abra **http://localhost:3000**.
 4. (Manual, sem o instalador: instale o Docker Desktop, copie `.env.example` para `.env`, troque as senhas e rode `iniciar.bat`.)
 5. Celular na mesma rede Wi‑Fi: `http://<IP-do-PC>:3000` (use IP fixo no roteador). Não exponha a porta 3000 na internet.
 
@@ -23,9 +23,9 @@ Sistema de gestão (orçamentos, pedidos/produção, estoque de filamento, produ
   `gunzip -c backups/controle-AAAA-MM-DD-HHMM.sql.gz | docker compose exec -T db psql -U controle controle` → `docker compose up -d`.
 - **Atualizar o sistema**: substitua a pasta `app/`, rode `docker compose up -d --build` (as migrações do banco rodam sozinhas).
 
-## IA local (opcional)
-PC sem GPU: use modelo pequeno (padrão `qwen2.5:1.5b`, respostas em ~10–40 s).
-`docker compose --profile ia up -d` e depois `docker compose exec ollama ollama pull qwen2.5:1.5b`.
+## IA local
+Sobe junto com o sistema: o modelo (`qwen2.5:3b`, escolhido para PC sem GPU) é baixado sozinho na primeira vez (~2 GB, precisa de internet) e fica salvo. Para trocar, mude `OLLAMA_MODEL` no `.env` e rode `iniciar.bat`.
+Até terminar o download, a página da IA mostra "indisponível".
 O restante do sistema funciona sem isso.
 
 ## Desenvolvimento

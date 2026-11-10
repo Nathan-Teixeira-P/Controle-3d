@@ -1,21 +1,25 @@
 import csv
 import io
+import re
+import unicodedata
 from datetime import date
+from urllib.parse import quote
 
+import openpyxl
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, Response
 from sqlmodel import Session, select
 
 from .. import services as sv
 from ..db import get_session
-from ..models import Insumo, Material, MovEstoque, Produto, Rolo
+from ..models import Insumo, Material, MovEstoque, Produto, ProdutoMaterial, Rolo
 from ..util import D, barreira, page
 
 router = APIRouter()
 
 
 def _volta(aba, msg=""):
-    return RedirectResponse(f"/estoque?aba={aba}&msg={msg}", 303)
+    return RedirectResponse(f"/estoque?aba={aba}&msg={quote(msg)}", 303)
 
 
 @router.get("/estoque")
@@ -197,23 +201,127 @@ async def mov_manual(request: Request, s: Session = Depends(get_session)):
     return _volta("insumos" if tipo == "insumo" else "produtos", "Movimento registrado")
 
 
+MODELO = {
+    "Filamentos": ["material", "cor", "marca", "peso_g", "preco", "qtd", "minimo_g", "fornecedor"],
+    "Insumos": ["nome", "unidade", "qtd", "custo_unit", "minimo", "fornecedor"],
+    "Produtos": ["nome", "sku", "categoria", "preco", "qtd", "minimo", "tempo_min", "lote_qtd", "material", "cor", "marca", "peso_g"],
+}
+EXEMPLO = {"Filamentos": ["PLA", "Preto", "Voolt", 1000, 90, 2, 1500, "Loja X"],
+           "Insumos": ["Ímã 6mm", "un", 100, 0.5, 20, ""],
+           "Produtos": ["Chaveiro", "CH-01", "Chaveiros", 12, 10, 5, 30, 1, "PLA", "Preto", "Voolt", 8]}
+
+
+def _chave(k):
+    k = unicodedata.normalize("NFKD", str(k)).encode("ascii", "ignore").decode().strip().lower()
+    return re.sub(r"\W+", "_", k).strip("_")
+
+
+def _linhas(dados: bytes, nome: str):
+    """Gera (dica_de_tipo, {coluna: texto}) de um .xlsx (uma aba por tipo ou coluna 'tipo') ou .csv (coluna 'tipo')."""
+    if nome.lower().endswith((".xlsx", ".xlsm")):
+        wb = openpyxl.load_workbook(io.BytesIO(dados), read_only=True, data_only=True)
+        folhas = [(ws.title, [list(r) for r in ws.iter_rows(values_only=True)]) for ws in wb.worksheets]
+    else:
+        try:
+            texto = dados.decode("utf-8-sig")
+        except UnicodeDecodeError:
+            texto = dados.decode("latin-1")
+        pri = texto.split("\n")[0]
+        folhas = [("", list(csv.reader(io.StringIO(texto), delimiter=";" if pri.count(";") >= pri.count(",") and ";" in pri else ",")))]
+    for titulo, linhas in folhas:
+        linhas = [r for r in linhas if any(c not in (None, "") for c in r)]
+        if not linhas:
+            continue
+        cab = [_chave(c) if c is not None else "" for c in linhas[0]]
+        for r in linhas[1:]:
+            yield _chave(titulo), {k: ("" if v is None else str(v).strip()) for k, v in zip(cab, r) if k}
+
+
+def _tipo_linha(row, dica):
+    t = _chave(row.get("tipo") or dica)
+    return "filamento" if t.startswith("fil") else "insumo" if t.startswith("ins") else "produto" if t.startswith("prod") else ""
+
+
+def _por_nome(s, modelo, nome):  # em Python: lower() do SQLite não trata acentos (Ímã)
+    return next((x for x in s.exec(select(modelo)) if x.nome.lower() == nome.lower()), None)
+
+
+def _importar_linha(s, tipo, row, hoje):
+    if tipo == "filamento":
+        m = _material(s, row.get("material") or "PLA", row.get("cor", ""), row.get("marca", ""), D(row.get("minimo_g")) or None)
+        if D(row.get("preco")) <= 0:
+            raise ValueError("filamento sem preço")
+        for _ in range(max(1, int(D(row.get("qtd"), 1)))):
+            _compra(s, m, D(row.get("peso_g"), 1000), D(row.get("preco")), hoje, row.get("fornecedor", ""))
+    elif tipo == "insumo":
+        nome = row.get("nome", "")
+        if not nome:
+            raise ValueError("insumo sem nome")
+        i = _por_nome(s, Insumo, nome) or Insumo(nome=nome)
+        i.unidade = row.get("unidade") or i.unidade
+        i.custo_unit = D(row.get("custo_unit")) or i.custo_unit
+        i.minimo = D(row.get("minimo")) or i.minimo
+        i.fornecedor = row.get("fornecedor") or i.fornecedor
+        i.ativo = True
+        s.add(i); s.flush()
+        if D(row.get("qtd")):
+            sv.mov(s, "insumo", i.id, D(row["qtd"]), "compra", "insumo", i.id, "importação")
+    else:
+        nome, sku = row.get("nome", ""), row.get("sku", "")
+        if not nome:
+            raise ValueError("produto sem nome")
+        p = (sku and s.exec(select(Produto).where(Produto.sku == sku)).first()) or _por_nome(s, Produto, nome)
+        novo = p is None
+        if novo:
+            p = Produto(nome=nome, sku=sku or f"P{len(s.exec(select(Produto)).all()) + 1:04d}")
+        p.categoria = row.get("categoria") or p.categoria
+        p.minimo = D(row.get("minimo")) or p.minimo
+        p.tempo_min = int(D(row.get("tempo_min"))) or p.tempo_min
+        p.lote_qtd = max(int(D(row.get("lote_qtd"), 1)), 1) if row.get("lote_qtd") else p.lote_qtd
+        if D(row.get("preco")) > 0:
+            p.preco, p.preco_manual = D(row["preco"]), True
+        p.ativo = True
+        if novo and row.get("material") and D(row.get("peso_g")) > 0:  # receita de filamento (sem comprar nada)
+            m = _material(s, row["material"], row.get("cor", ""), row.get("marca", ""))
+            p.materiais = [ProdutoMaterial(material_id=m.id, gramas=D(row["peso_g"]))]
+        s.add(p); s.flush()
+        if novo and not p.preco_manual:
+            sv.atualizar_precos(s, [p])
+        if D(row.get("qtd")):
+            sv.mov(s, "produto", p.id, D(row["qtd"]), "ajuste", "produto", p.id, "importação")
+
+
+@router.get("/estoque/modelo.xlsx")
+def modelo():
+    wb = openpyxl.Workbook()
+    wb.remove(wb.active)
+    for aba, cols in MODELO.items():
+        ws = wb.create_sheet(aba)
+        ws.append(cols); ws.append(EXEMPLO[aba])
+    b = io.BytesIO(); wb.save(b)
+    return Response(b.getvalue(), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": 'attachment; filename="modelo-estoque.xlsx"'})
+
+
 @router.post("/estoque/importar")
 async def importar(request: Request, s: Session = Depends(get_session)):
-    """CSV (;|,) colunas: tipo(filamento|insumo), material, cor, marca, peso_g, preco | nome, unidade, qtd, custo_unit."""
-    f = await request.form()
-    texto = (await f["arquivo"].read()).decode("utf-8-sig")
-    rd = csv.DictReader(io.StringIO(texto), delimiter=";" if texto.split("\n")[0].count(";") else ",")
-    n = 0
-    for row in rd:
-        row = {k.strip().lower(): (v or "").strip() for k, v in row.items() if k}
-        if row.get("tipo", "").lower() == "filamento":
-            m = _material(s, row.get("material", "PLA"), row.get("cor", ""), row.get("marca", ""))
-            _compra(s, m, D(row.get("peso_g"), 1000), D(row.get("preco")), date.today(), row.get("fornecedor", "")); n += 1
-        elif row.get("tipo", "").lower() == "insumo" and row.get("nome"):
-            i = Insumo(nome=row["nome"], unidade=row.get("unidade") or "un", custo_unit=D(row.get("custo_unit")), fornecedor=row.get("fornecedor", ""))
-            s.add(i); s.flush()
-            if D(row.get("qtd")):
-                sv.mov(s, "insumo", i.id, D(row["qtd"]), "compra", "insumo", i.id)
-            n += 1
+    """Planilha .xlsx (abas Filamentos/Insumos/Produtos) ou .csv (coluna 'tipo'). Cada linha é importada isolada: erro numa não barra as outras."""
+    arq = (await request.form())["arquivo"]
+    n, erros = 0, []
+    try:
+        for i, (dica, row) in enumerate(_linhas(await arq.read(), arq.filename or ""), 2):
+            tipo = _tipo_linha(row, dica)
+            try:
+                if not tipo:
+                    raise ValueError("tipo não reconhecido")
+                with s.begin_nested():
+                    _importar_linha(s, tipo, row, date.today())
+                n += 1
+            except Exception as e:
+                erros.append(f"{dica or 'linha'} {i}: {e}")
+    except Exception:
+        s.rollback()
+        return _volta("filamentos", "Não consegui ler o arquivo. Use o modelo (.xlsx) ou um .csv.")
     s.commit()
-    return _volta("filamentos", f"{n} itens importados")
+    msg = f"{n} itens importados" + (f". {len(erros)} com erro: " + "; ".join(erros[:3]) if erros else "")
+    return _volta("filamentos", msg)

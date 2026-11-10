@@ -1,6 +1,9 @@
 {% extends "base.html" %}{% from "_m.html" import campo, num, opts %}{% block body %}
 <h1>Estoque</h1>{% if msg %}<div class="msg">{{msg}}</div>{% endif %}
 <div class="tabs">{% for k,l in [("alertas","Alertas (" ~ baixo|length ~ ")"),("filamentos","Filamentos"),("insumos","Insumos"),("produtos","Produtos prontos"),("movimentos","Movimentos"),("arquivados","Arquivados (" ~ (arq.rolos|length + arq.insumos|length + arq.produtos|length) ~ ")")] %}<a href="?aba={{k}}" class="{{'on' if aba==k}}">{{l}}</a>{% endfor %}</div>
+<details class="card"><summary><b>Importar planilha (filamentos, insumos e produtos prontos)</b></summary>
+<p><small>Envie um <code>.xlsx</code> com as abas <b>Filamentos</b>, <b>Insumos</b> e <b>Produtos</b> (ou um <code>.csv</code> com a coluna <code>tipo</code>). Produtos novos são criados com os dados da linha, e <code>qtd</code> entra no estoque pronto. <a href="/estoque/modelo.xlsx">Baixar modelo</a></small></p>
+<form method="post" action="/estoque/importar" enctype="multipart/form-data" style="display:flex;gap:8px"><input type="file" name="arquivo" accept=".xlsx,.csv" required><button>Importar</button></form></details>
 {% if aba == "alertas" %}
 <div class="card scroll"><p><small><span class="tag acabando">acabando</span> = no mínimo definido ou abaixo · <span class="tag acabou">acabou</span> = zerado. Defina o mínimo em: filamento (na compra), insumo (cadastro) e produto (ficha do produto).</small></p>
 <table><tr><th>Situação</th><th>Tipo</th><th>Item</th><th class="r">Saldo</th><th class="r">Mínimo</th><th></th></tr>
@@ -19,8 +22,6 @@
 <div><label>Material</label><input name="tipo" list="tipos" required placeholder="PLA, PETG…"><datalist id="tipos"><option>PLA<option>PETG<option>ABS<option>ASA<option>TPU<option>PLA SILK</datalist></div>
 {{campo("cor","Cor")}}{{campo("marca","Marca")}}{{campo("fornecedor","Fornecedor")}}{{num("peso","Peso do rolo (g)",1000)}}{{num("preco","Preço pago (R$)")}}{{num("qtd","Quantos rolos",1)}}{{campo("data","Data","","date")}}{{num("minimo_g","Mínimo em estoque (g) — opcional")}}
 </div><p><button>Registrar</button></p></form></details>
-<form method="post" action="/estoque/importar" enctype="multipart/form-data" class="card"><b>Importar estoque inicial (CSV)</b><br><small>Colunas: <code>tipo;material;cor;marca;peso_g;preco</code> (tipo=filamento) ou <code>tipo;nome;unidade;qtd;custo_unit</code> (tipo=insumo)</small>
-<div style="display:flex;gap:8px"><input type="file" name="arquivo" accept=".csv" required><button>Importar</button></div></form>
 <div class="wrap"><table><tr><th>Rolo</th><th>Material</th><th>Restante</th><th></th><th>Fornecedor</th><th class="r">Custo/g</th><th class="r">Preço pago</th><th>Pesar</th><th></th></tr>
 {% for r, sl in rolos %}<tr class="{{ 'row-bad' if sl <= 0 }}"><td>#{{r.id}}</td><td>{{r.material.nome}}</td><td>{{sl|dec(0)}} g / {{r.peso_inicial|dec(0)}}</td><td style="width:120px"><div class="bar"><i style="width:{{ [100, (sl / r.peso_inicial * 100) if r.peso_inicial else 0]|min if sl > 0 else 0 }}%"></i></div></td>
 <td>{{r.fornecedor}}</td><td class="r">{{r.custo_g|dec(4)}}</td><td class="r">{{r.preco|brl}}</td>

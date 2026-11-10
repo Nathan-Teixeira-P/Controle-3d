@@ -23,7 +23,7 @@ services:
       DATABASE_URL: postgresql+psycopg://controle:${DB_PASSWORD:-controle}@db/controle
       SECRET_KEY: ${SECRET_KEY:?defina SECRET_KEY no .env}
       OLLAMA_URL: http://ollama:11434
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:1.5b}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:3b}
     ports:
       - "3000:8000"
     volumes:
@@ -51,13 +51,21 @@ services:
       - uploads:/uploads
     entrypoint: ["sh", "/backup.sh"]
 
-  # IA local opcional: docker compose --profile ia up -d  &&  docker compose exec ollama ollama pull qwen2.5:1.5b
+  # IA local: o modelo é baixado sozinho na primeira subida (ollama-pull) e fica salvo no volume "ollama".
   ollama:
     image: ollama/ollama
-    profiles: ["ia"]
     restart: unless-stopped
     volumes:
       - ollama:/root/.ollama
+
+  ollama-pull:
+    image: ollama/ollama
+    depends_on: [ollama]
+    restart: "no"
+    entrypoint: ["sh", "-c", "until ollama pull $${OLLAMA_MODEL}; do sleep 5; done"]
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:3b}
 
 # Volumes "external": `docker compose down -v` NÃO os apaga. Crie uma vez com iniciar.bat / iniciar.sh.
 volumes:

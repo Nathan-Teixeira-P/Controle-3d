@@ -6,7 +6,7 @@ from sqlmodel import Session, select
 from app import services as sv
 from app.db import engine
 from app.main import app
-from app.models import Lancamento, MovEstoque, Pedido, Produto, Rolo, Tarefa, Venda
+from app.models import Insumo, Lancamento, MovEstoque, Pedido, Produto, Rolo, Tarefa, Venda
 
 D = Decimal
 
@@ -19,12 +19,6 @@ def setup_basico(c):
                                   "mat_id": "1", "mat_g": "50", "impressora_id": "1"})
     assert r.status_code == 303
     return c
-
-
-def test_exige_login():
-    with TestClient(app, follow_redirects=False) as anon:
-        assert anon.get("/").headers["location"] in ("/login", "/setup")
-        assert anon.get("/clientes").status_code == 303
 
 
 def test_calculadora_e_custo_produto(c):
@@ -400,3 +394,37 @@ def test_ficha_do_produto_e_so_cadastro(c):
     with Session(engine) as s:   # nada de estoque foi mexido pelos cadastros
         assert sv.saldo(s, "produto", 1) == 0 and sv.saldo(s, "produto", 2) == 0 and sv.saldo(s, "rolo", 1) == D("1000")
     assert "Registrar produção" in c.get("/estoque?aba=produtos").text
+
+def test_ia_contexto(c):
+    from app.routes.ia import contexto
+    with Session(engine) as s:
+        t = contexto(s)
+    assert "VENDAS POR MÊS" in t and "INSUMOS MAIS USADOS" in t
+
+
+def test_importar_planilha_xlsx(c):
+    import io
+    import openpyxl
+    wb = openpyxl.Workbook(); wb.remove(wb.active)
+    wb.create_sheet("Filamentos").append(["material", "cor", "marca", "peso_g", "preco", "qtd"])
+    wb["Filamentos"].append(["PLA", "Preto", "V", 1000, 90, 2])
+    wb.create_sheet("Insumos").append(["nome", "unidade", "qtd", "custo_unit", "minimo"])
+    wb["Insumos"].append(["Ímã", "un", 100, 0.5, 20]); wb["Insumos"].append(["", "un", 1, 1, 1])      # 2ª linha inválida
+    wb.create_sheet("Produtos").append(["nome", "sku", "preco", "qtd", "minimo", "tempo_min", "material", "cor", "marca", "peso_g"])
+    wb["Produtos"].append(["Chaveiro", "CH1", 12, 7, 3, 30, "PLA", "Preto", "V", 8])
+    b = io.BytesIO(); wb.save(b)
+    def up():
+        return c.post("/estoque/importar", files={"arquivo": ("e.xlsx", b.getvalue())})
+    r = up()
+    assert r.status_code == 303 and "com%20erro" in r.headers["location"]   # 3 ok + 1 erro
+    with Session(engine) as s:
+        p = s.exec(select(Produto).where(Produto.sku == "CH1")).one()
+        assert p.preco == 12 and p.minimo == 3 and p.materiais[0].gramas == 8 and sv.saldo(s, "produto", p.id) == 7
+        ins = s.exec(select(Insumo)).one()
+        assert sv.saldo(s, "insumo", ins.id) == 100
+        assert sum(sv.saldos(s, "rolo").values()) == 2000
+    up()   # reimportar: produto/insumo não duplicam (estoque soma), filamento soma no rolo
+    with Session(engine) as s:
+        assert len(s.exec(select(Produto)).all()) == 1 and len(s.exec(select(Insumo)).all()) == 1
+        assert sv.saldo(s, "produto", p.id) == 14
+    assert c.get("/estoque/modelo.xlsx").status_code == 200

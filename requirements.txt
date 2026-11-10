@@ -5,7 +5,6 @@ python-multipart
 sqlmodel
 psycopg[binary]
 alembic
-itsdangerous
 weasyprint
 httpx
 openpyxl

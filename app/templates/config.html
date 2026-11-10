@@ -25,6 +25,5 @@
 <div class="card box"><h3>Backup</h3><p><small>Automático todo dia (guarda 30 dias) na pasta <code>backups/</code>. Copie essa pasta de vez em quando para um pendrive.</small></p>
 <form method="post" action="/backup"><button>Fazer backup agora</button></form>
 {% for b in backups %}<div><a href="/backup/{{b}}">{{b}}</a></div>{% endfor %}</div>
-<div class="card"><h3>Trocar senha</h3><form method="post" action="/senha">
-<label>Senha atual</label><input name="atual" type="password" required><label>Nova senha (mín. 6)</label><input name="nova" type="password" required><p><button>Alterar</button></p></form></div></div>
+</div>
 {% endblock %}

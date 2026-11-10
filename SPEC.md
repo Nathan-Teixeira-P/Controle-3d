@@ -32,7 +32,7 @@ Desvios em relação ao desenho original (decididos na implementação):
 - `Config` perdeu consumo/depreciação (agora por `Impressora`); ganhou CNPJ/endereço/PIX opcionais (saem no PDF só se preenchidos).
 - Recorrência de tarefas (diária/semanal) e de lançamentos (mensal) geram a próxima ocorrência ao concluir/pagar.
 - Kanban com botões ◀ ▶ (sem arrastar).
-- Modelo de IA padrão `qwen2.5:1.5b` (PC da cliente: i7‑5500U, 12 GB, sem GPU).
+- Modelo de IA padrão `qwen2.5:3b` (PC da cliente: i7‑5500U, 12 GB, sem GPU).
 
 ## 4. Modelo de dados (alvo)
 Valores monetários: `Numeric(12,2)`; peso em gramas `Numeric(10,2)`; tempo em minutos `int`. Toda tabela tem `id`, `criado_em`; as de cadastro têm `ativo` (arquivar em vez de excluir).

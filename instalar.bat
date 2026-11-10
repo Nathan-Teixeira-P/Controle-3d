@@ -5,7 +5,7 @@ cd /d "%~dp0"
 
 if not exist .env (
   echo Gerando .env com senhas aleatorias...
-  powershell -NoProfile -Command "'DB_PASSWORD='+[guid]::NewGuid().ToString('N'); 'SECRET_KEY='+[guid]::NewGuid().ToString('N')+[guid]::NewGuid().ToString('N'); 'OLLAMA_MODEL=qwen2.5:1.5b'" > .env
+  powershell -NoProfile -Command "'DB_PASSWORD='+[guid]::NewGuid().ToString('N'); 'SECRET_KEY='+[guid]::NewGuid().ToString('N')+[guid]::NewGuid().ToString('N'); 'OLLAMA_MODEL=qwen2.5:3b'" > .env
 )
 
 set "PATH=%PATH%;%ProgramFiles%\Docker\Docker\resources\bin"

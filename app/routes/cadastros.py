@@ -7,11 +7,10 @@ from fastapi.responses import FileResponse, RedirectResponse
 from sqlmodel import Session, or_, select
 
 from .. import services as sv
-from ..auth import confere, hash_senha
 from ..calc import calcular
 from ..db import get_session
 from ..models import (Canal, Cliente, Impressora, Insumo, Material, Orcamento, Pedido, Produto, ProdutoInsumo, ProdutoMaterial,
-                      Projeto, Usuario, Venda)
+                      Projeto, Venda)
 from ..util import D, page, paginate
 
 router = APIRouter()
@@ -93,16 +92,6 @@ async def canal_salvar(request: Request, s: Session = Depends(get_session)):
     c.ativo = f.get("ativo", "1") == "1"
     s.add(c); s.commit()
     return RedirectResponse("/config?msg=Canal salvo", 303)
-
-
-@router.post("/senha")
-async def trocar_senha(request: Request, s: Session = Depends(get_session)):
-    f = await request.form()
-    u = s.get(Usuario, request.session["uid"])
-    if not confere(f["atual"], u.senha_hash) or len(f["nova"]) < 6:
-        return RedirectResponse("/config?msg=Senha atual incorreta ou nova muito curta", 303)
-    u.senha_hash = hash_senha(f["nova"]); s.add(u); s.commit()
-    return RedirectResponse("/config?msg=Senha alterada", 303)
 
 
 @router.post("/backup")

@@ -19,5 +19,4 @@ def c():
     SQLModel.metadata.drop_all(engine)
     SQLModel.metadata.create_all(engine)
     with TestClient(app, follow_redirects=False) as cli:  # `with` dispara o seed da impressora
-        assert cli.post("/setup", data={"nome": "a", "senha": "123456"}).status_code == 303
         yield cli
